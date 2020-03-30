@@ -116,6 +116,57 @@ static class Map
                 throw new NotImplementedException();
         }
     }
+
+    private static bool IsInMap(Position p)
+    {
+        return 0 <= p.x && p.x < Width &&
+            0 <= p.y && p.y < Height;
+    }
+
+    internal static List<Position> GetWaterPositionsAround(Position position,int minRange, int maxRange)
+    {
+        var positions = new List<Position>();
+
+        for (int dx = 0; dx < maxRange; dx++)
+        {
+            for (int dy = 0; dy <= maxRange; dy++)
+            {
+                if ((minRange <= dx + dy) && (dx + dy <= maxRange))
+                {
+                    {
+                        var newPosition = new Position(position.x + dx, position.y + dy);
+                        if (IsInMap(newPosition) && IsWater(newPosition))
+                        {
+                            positions.Add(newPosition);
+                        }
+                    }
+                    {
+                        var newPosition = new Position(position.x - dx, position.y + dy);
+                        if (IsInMap(newPosition) && IsWater(newPosition))
+                        {
+                            positions.Add(newPosition);
+                        }
+                    }
+                    {
+                        var newPosition = new Position(position.x - dx, position.y - dy);
+                        if (IsInMap(newPosition) && IsWater(newPosition))
+                        {
+                            positions.Add(newPosition);
+                        }
+                    }
+                    {
+                        var newPosition = new Position(position.x + dx, position.y - dy);
+                        if (IsInMap(newPosition) && IsWater(newPosition))
+                        {
+                            positions.Add(newPosition);
+                        }
+                    }
+                }
+            }
+        }
+
+        return positions;
+    }
 }
 
 class StartingPositionComputer
@@ -134,13 +185,16 @@ class GameState
 {
     public readonly Position MyPosition;
     public readonly List<Action> OpponentActions;
+    public readonly int TorpedoCooldown;
 
-    public GameState(Position myPosition, List<Action> opponentActions)
+    public GameState(Position myPosition, List<Action> opponentActions, int torpedoCooldown)
     {
         MyPosition = myPosition;
         OpponentActions = opponentActions;
+        TorpedoCooldown = torpedoCooldown;
     }
-        
+
+    public bool TorpedoAvailable => TorpedoCooldown == 0;
 }
 
 public enum Direction { N, S, E, W }
@@ -235,6 +289,7 @@ class Surface : Action
 
 class Torpedo: Action
 {
+    public static int Range = 4;
     public readonly Position TargetPosition;
 
     public Torpedo(Position position)
@@ -267,7 +322,34 @@ class AI
         var selectedMove = SelectMove();
         actions.Add(selectedMove);
 
+        var usePowers = SelectPower();
+        actions.AddRange(usePowers);
+
         return actions;
+    }
+
+    private List<Action> SelectPower()
+    {
+        var actions = new List<Action>();
+
+        if (_gameState.TorpedoAvailable)
+        {
+            var torpedoPosition = SelectTorpedoTarget();
+            actions.Add(new Torpedo(torpedoPosition));
+        }
+
+        return actions;
+    }
+
+    private Position SelectTorpedoTarget()
+    {
+        var myPosition = _gameState.MyPosition;
+
+        var positions = Map.GetWaterPositionsAround(myPosition, Torpedo.Range - 1, Torpedo.Range);
+
+        var random = new Random();
+
+        return positions[ random.Next(0, positions.Count)];
     }
 
     private Action SelectMove()
@@ -397,7 +479,7 @@ class Player
             // Write an action using Console.WriteLine()
             // To debug: Console.Error.WriteLine("Debug messages...");
 
-            var gameState = new GameState(myPosition, opponentOrders);
+            var gameState = new GameState(myPosition, opponentOrders, torpedoCooldown);
             var ai = new AI(gameState);
 
             var actions = ai.ComputeActions();
