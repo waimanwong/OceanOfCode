@@ -173,6 +173,9 @@ public abstract class Action
                     var y = int.Parse(tokens[2]);
                     var position = new Position(x, y);
                     actions.Add(new Torpedo(position));
+
+                    History.LastOpponentTorpedoPosition = position;
+                    
                     break;
 
                 case "SURFACE":
@@ -272,48 +275,36 @@ class AI
         var possibleMoves = GetPossibleDirectionsForMove();
         var possibleMoveCount = possibleMoves.Count;
 
-        if(possibleMoveCount == 0)
+        if (possibleMoveCount == 0)
         {
             return new Surface();
         }
 
-
-        var oppponentTorpedoOrder = _gameState.OpponentActions.OfType<Torpedo>().SingleOrDefault();
-
-        if (oppponentTorpedoOrder == null)
-        {
-            if (History.LastOpponentTorpedoPosition != Position.None)
-            {
-                var lastTorpedoPosition = History.LastOpponentTorpedoPosition;
-                Player.Debug($"Move as close as possible to the last opponent torpedo at ({lastTorpedoPosition.ToString()})");
-
-                return MoveTowardPosition(possibleMoves, lastTorpedoPosition);
-            }
-            else
-            {
-                var random = new Random();
-                var randomDirection = possibleMoves[random.Next(0, possibleMoveCount - 1)].Item1;
-
-                return new Move(randomDirection, Power.TORPEDO);
-            }
+        if (History.LastOpponentTorpedoPosition != Position.None)
+        {   
+            Player.Debug($"Move as close as possible to the last opponent torpedo at ({History.LastOpponentTorpedoPosition.ToString()})");
+            return MoveTowardPosition(possibleMoves, History.LastOpponentTorpedoPosition);
         }
-        else
-        {
-            History.LastOpponentTorpedoPosition = oppponentTorpedoOrder.TargetPosition;
 
-            var lastTorpedoPosition = History.LastOpponentTorpedoPosition;
+        return RandomMove(possibleMoves, possibleMoveCount);
 
-            Player.Debug($"Move as close as possible to the last opponent torpedo at ({lastTorpedoPosition.ToString()})");
+    }
 
-            return MoveTowardPosition(possibleMoves, lastTorpedoPosition);
-        }
+    private static Action RandomMove(List<(Direction, Position)> possibleMoves, int possibleMoveCount)
+    {
+        Player.Debug("Random move");
+
+        var random = new Random();
+        var randomDirection = possibleMoves[random.Next(0, possibleMoveCount - 1)].Item1;
+
+        return new Move(randomDirection, Power.TORPEDO);
     }
 
     private static Action MoveTowardPosition(List<(Direction, Position)> possibleMoves, Position targetPosition)
     {
         var move = possibleMoves
-                            .OrderByDescending(x => x.Item2.DistanceTo(targetPosition))
-                            .First();
+                    .OrderBy(x => x.Item2.DistanceTo(targetPosition))
+                    .First();
 
         return new Move(move.Item1, Power.TORPEDO);
     }
