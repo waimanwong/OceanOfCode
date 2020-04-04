@@ -152,23 +152,58 @@ static class Map
             0 <= p.y && p.y < Height;
     }
 
+    public static Position[] GetWaterCorners()
+    {
+        return new Position[]
+        {
+            GetClosestWaterPosition( new Position(0,0), p => new Position(p.x + 1, p.y)),
+            GetClosestWaterPosition( new Position(Width - 1, 0), p => new Position(p.x, p.y + 1)),
+            GetClosestWaterPosition( new Position(Width - 1, Height - 1), p => new Position(p.x - 1, p.y)),
+            GetClosestWaterPosition( new Position(0, Height - 1), p=> new Position(p.x, p.y - 1))
+        };
+    }
+
+    private static Position GetClosestWaterPosition(Position p, Func<Position, Position> nextPosition)
+    {
+        var currentPosition = p;
+        while(Map.IsWater(currentPosition) == false)
+        {
+            currentPosition = nextPosition(currentPosition);
+        }
+        return currentPosition;
+    }
+
 }
 
 class StartingPositionComputer
 {
-    public Position ComputeInitialPosition()
+    public Position EvaluateBestPosition()
     {
-        var smallestMoves = Map.PossibleMovesByCount
-            .Where(kvp => kvp.Value.Count > 0)
-            .OrderBy(kvp => kvp.Key)
-            .First()
-            .Value;
+        var corners = Map.GetWaterCorners();
 
-        var random = new Random();
+        var bestPosition = corners[0];
+        var bestFilledRegion = new HashSet<Position>();
 
-        Player.Debug(smallestMoves.Count.ToString());
-        
-        return smallestMoves.ElementAt(random.Next(0, smallestMoves.Count - 1));
+        foreach(var corner in corners)
+        {
+            if(bestFilledRegion.Contains(corner) == true)
+            {
+                //Do nothings
+            }
+            else
+            {
+                var fillEngine = new FloodFillEngine();
+                var filledRegion = fillEngine.Run(corner);
+
+                if(filledRegion.Count > bestFilledRegion.Count)
+                {
+                    bestPosition = corner;
+                    bestFilledRegion = filledRegion;
+                }
+            }
+        }
+
+        return bestPosition;
     }
 }
 
@@ -387,7 +422,7 @@ class AI
 
     private Action EvaluateBestMove(List<(Position, Direction)> possibleMoves)
     {
-        var bestDirection = Direction.N;
+        var bestMove = possibleMoves.First();
         var bestScore = 0;
         var bestFilledRegion = new HashSet<Position>();
 
@@ -396,7 +431,18 @@ class AI
             if (bestFilledRegion.Contains(possibleMove.Item1))
             {
                 //the possible move result in the same bestfilled region
-                //Do nothing
+                var freedomScore = new Func<Position, int>(pos =>
+                       Map.GetNeighborPositions(pos)
+                           .Count(p => Map.IsWater(p.Item1) && History.VisitedPositions.Contains(p.Item1) == false));
+
+                var bestPositionFreedomScore = freedomScore(bestMove.Item1);
+                var currentMoveFreedomScore = freedomScore(possibleMove.Item1);
+
+                if (currentMoveFreedomScore < bestPositionFreedomScore)
+                {
+                    //go toward position with least freedom
+                    bestMove = possibleMove;
+                }
             }
             else
             {
@@ -408,8 +454,9 @@ class AI
 
                 if (score > bestScore)
                 {
+                    //Go to the position with largest region
                     bestScore = score;
-                    bestDirection = possibleMove.Item2;
+                    bestMove = possibleMove;
                     bestFilledRegion = filledRegion;
                 }
             }
@@ -418,10 +465,10 @@ class AI
         if(_gameState.SilenceCooldown == 0)
         {
             //Convert to Silence Move
-            return new Silence(direction: bestDirection, 1);
+            return new Silence(direction: bestMove.Item2, 1);
         }
 
-        return new Move(bestDirection, SelectPowerToCharge());
+        return new Move(bestMove.Item2, SelectPowerToCharge());
     }
 
     private Power SelectPowerToCharge()
@@ -553,7 +600,8 @@ class Player
         // Write an action using Console.WriteLine()
         // To debug: Console.Error.WriteLine("Debug messages...");
 
-        var initialPosition = new StartingPositionComputer().ComputeInitialPosition();
+        var initialPosition = new StartingPositionComputer()
+            .EvaluateBestPosition();
         Console.WriteLine(initialPosition.ToString());
 
         // game loop
