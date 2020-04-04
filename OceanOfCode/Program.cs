@@ -176,13 +176,20 @@ class GameState
 {
     public readonly Position MyPosition;
     public readonly List<Action> OpponentActions;
-    public readonly int TorpedoCooldown;
 
-    public GameState(Position myPosition, List<Action> opponentActions, int torpedoCooldown)
+    public readonly int TorpedoCooldown;
+    public readonly int SonarCooldown;
+    public readonly int SilenceCooldown;
+
+    public GameState(Position myPosition, List<Action> opponentActions, 
+        int torpedoCooldown, int sonarCooldown, int silenceCooldown)
     {
         MyPosition = myPosition;
         OpponentActions = opponentActions;
+
         TorpedoCooldown = torpedoCooldown;
+        SonarCooldown = sonarCooldown;
+        SilenceCooldown = silenceCooldown;
     }
 
     public bool TorpedoAvailable => TorpedoCooldown == 0;
@@ -190,7 +197,7 @@ class GameState
 
 public enum Direction { N, S, E, W }
 
-public enum Power { UNKNOWN, TORPEDO }
+public enum Power { UNKNOWN, TORPEDO, SILENCE, SONAR }
 
 #region actions
 public abstract class Action
@@ -320,20 +327,22 @@ class Sonar : Action
 class Silence :Action
 {
     private Direction? _direction;
+    private int _moves;
 
     public Silence()
     {
         _direction = null;
     }
 
-    public Silence(Direction direction)
+    public Silence(Direction direction, int moves)
     {
         _direction = direction;
+        _moves = moves;
     }
 
     public override string ToString()
     {
-        return $"SILENCE {_direction.ToString()} 4";
+        return $"SILENCE {_direction.ToString()} {_moves.ToString()}";
     }
 }
 
@@ -370,13 +379,13 @@ class AI
 
         if (possibleMoveCount == 1)
         {
-            return new Move(possibleMoves.Single().Item2, Power.TORPEDO);
+            return new Move(possibleMoves.Single().Item2, SelectPowerToCharge());
         }
 
         return EvaluateBestMove(possibleMoves);
     }
 
-    private static Action EvaluateBestMove(List<(Position, Direction)> possibleMoves)
+    private Action EvaluateBestMove(List<(Position, Direction)> possibleMoves)
     {
         var bestDirection = Direction.N;
         var bestScore = 0;
@@ -395,7 +404,31 @@ class AI
             }
         }
 
-        return new Move(bestDirection, Power.TORPEDO);
+        if(_gameState.SilenceCooldown == 0)
+        {
+            //Convert to Silence Move
+            return new Silence(direction: bestDirection, 1);
+        }
+
+        return new Move(bestDirection, SelectPowerToCharge());
+    }
+
+    private Power SelectPowerToCharge()
+    {
+        if(_gameState.SilenceCooldown != 0)
+        {
+            return Power.SILENCE;
+        }
+        if(_gameState.SonarCooldown != 0)
+        {
+            return Power.SONAR;
+        }
+        if(_gameState.TorpedoCooldown != 0)
+        {
+            return Power.TORPEDO;
+        }
+
+        return Power.SILENCE;
     }
 
     private List<(Position, Direction)> GetPossibleDirectionsForMove()
@@ -541,7 +574,9 @@ class Player
             // Write an action using Console.WriteLine()
             // To debug: Console.Error.WriteLine("Debug messages...");
 
-            var gameState = new GameState(myPosition, opponentOrders, torpedoCooldown);
+            var gameState = new GameState(
+                myPosition, opponentOrders, 
+                torpedoCooldown, sonarCooldown, silenceCooldown);
             var ai = new AI(gameState);
 
             var actions = ai.ComputeActions();
