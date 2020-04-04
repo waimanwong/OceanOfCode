@@ -10,7 +10,6 @@ using System.Collections.Generic;
  * the standard input according to the problem statement.
  **/
 
-
 public struct Position
 {
     public int x;
@@ -59,12 +58,44 @@ static class Map
 
     private static char Water = '.';
     private static char Island = 'x';
+
+    public static Dictionary<int, HashSet<Position>> PossibleMovesByCount;
+
+    private static int[][] PossibleMoveCount;
    
     public static void InitializeMap(int height, int width, string[] rows)
     {
         Height = height;
         Width = width;
         Rows = rows;
+
+        PossibleMoveCount = new int[height][];
+        PossibleMovesByCount = new Dictionary<int, HashSet<Position>>();
+        for (int i = 1; i < 5; i++)
+        {
+            PossibleMovesByCount[i] = new HashSet<Position>();
+        }
+
+        for (int y = 0; y < height; y++ )
+        {
+            PossibleMoveCount[y] = new int[width];
+
+            for(int x = 0; x < width; x++)
+            {
+                var position = new Position(x, y);
+
+                if (IsWater(position))
+                {
+                    var possibleMoveCount = Map.GetNeighborPositions(position)
+                        .Count( neighpos => IsWater(neighpos.Item1));
+
+                    PossibleMoveCount[y][x] = possibleMoveCount;
+
+                    if (possibleMoveCount > 0)
+                        PossibleMovesByCount[possibleMoveCount].Add(position);
+                }
+            }
+        }
     }
 
     public static bool IsWater(Position coord)
@@ -81,103 +112,63 @@ static class Map
         return Rows[y][x] == Island;
     }
 
-    public static List<Position> GetWaterPositions()
+    public static List<(Position, Direction)> GetNeighborPositions(Position fromPosition)
     {
-        var waterPositions = new List<Position>();
-        for(int y= 0; y< Height; y++)
+        var neighborPositions = new List<(Position, Direction)>(4);
+        foreach(var direction in Player.AllDirections)
         {
-            for(int x = 0; x < Width; x++)
+            switch (direction)
             {
-                var position = new Position(x, y);
-                if (IsWater(position))
-                {
-                    waterPositions.Add(position);
-                }
+                case Direction.E:
+                    if (fromPosition.x != Width - 1) 
+                        neighborPositions.Add((new Position(fromPosition.x + 1, fromPosition.y), direction));
+                    break;
+
+                case Direction.N:
+                    if (fromPosition.y != 0) 
+                        neighborPositions.Add((new Position(fromPosition.x, fromPosition.y - 1), direction));
+                    break;
+
+                case Direction.S:
+                    if (fromPosition.y != Height - 1)
+                        neighborPositions.Add((new Position(fromPosition.x, fromPosition.y + 1), direction));
+                    break;
+
+                case Direction.W:
+                    if (fromPosition.x != 0)
+                        neighborPositions.Add((new Position(fromPosition.x - 1, fromPosition.y), direction));
+                    break;
+
+                default:
+                    throw new NotImplementedException();
             }
         }
-
-        return waterPositions;
+        return neighborPositions;
     }
 
-    public static Position GetNeighborPosition(Position position, Direction direction)
-    {
-        switch(direction)
-        {
-            case Direction.E:
-                return (position.x == Width - 1) ? Position.OutOfBOund : new Position(position.x + 1, position.y);
-            case Direction.N:
-                return (position.y == 0) ? Position.OutOfBOund : new Position(position.x, position.y - 1);
-            case Direction.S:
-                return (position.y == Height - 1) ? Position.OutOfBOund : new Position(position.x, position.y + 1);
-            case Direction.W:
-                return (position.x == 0) ? Position.OutOfBOund : new Position(position.x - 1, position.y);
-
-            default:
-                throw new NotImplementedException();
-        }
-    }
-
-    private static bool IsInMap(Position p)
+    public static bool IsInMap(Position p)
     {
         return 0 <= p.x && p.x < Width &&
             0 <= p.y && p.y < Height;
     }
 
-    internal static List<Position> GetWaterPositionsAround(Position position,int minRange, int maxRange)
-    {
-        var positions = new List<Position>();
-
-        for (int dx = 0; dx < maxRange; dx++)
-        {
-            for (int dy = 0; dy <= maxRange; dy++)
-            {
-                if ((minRange <= dx + dy) && (dx + dy <= maxRange))
-                {
-                    {
-                        var newPosition = new Position(position.x + dx, position.y + dy);
-                        if (IsInMap(newPosition) && IsWater(newPosition))
-                        {
-                            positions.Add(newPosition);
-                        }
-                    }
-                    {
-                        var newPosition = new Position(position.x - dx, position.y + dy);
-                        if (IsInMap(newPosition) && IsWater(newPosition))
-                        {
-                            positions.Add(newPosition);
-                        }
-                    }
-                    {
-                        var newPosition = new Position(position.x - dx, position.y - dy);
-                        if (IsInMap(newPosition) && IsWater(newPosition))
-                        {
-                            positions.Add(newPosition);
-                        }
-                    }
-                    {
-                        var newPosition = new Position(position.x + dx, position.y - dy);
-                        if (IsInMap(newPosition) && IsWater(newPosition))
-                        {
-                            positions.Add(newPosition);
-                        }
-                    }
-                }
-            }
-        }
-
-        return positions;
-    }
 }
 
 class StartingPositionComputer
 {
     public Position ComputeInitialPosition()
     {
-        var waterPositions = Map.GetWaterPositions().ToArray();
+        var smallestMoves = Map.PossibleMovesByCount
+            .Where(kvp => kvp.Value.Count > 0)
+            .OrderBy(kvp => kvp.Key)
+            .First()
+            .Value;
 
         var random = new Random();
 
-        return waterPositions[random.Next(0, waterPositions.Length - 1)];
+        Player.Debug(smallestMoves.Count.ToString());
+        
+        return smallestMoves.ElementAt(random.Next(0, smallestMoves.Count - 1));
     }
 }
 
@@ -201,6 +192,7 @@ public enum Direction { N, S, E, W }
 
 public enum Power { UNKNOWN, TORPEDO }
 
+#region actions
 public abstract class Action
 {
     private static string _separator = "|";
@@ -253,7 +245,7 @@ public abstract class Action
     }
 }
 
-class Move: Action
+class Move : Action
 {
     private Direction _direction;
     private Power _power;
@@ -302,14 +294,12 @@ class Torpedo: Action
         return $"TORPEDO {TargetPosition.ToString()}";
     }
 }
+#endregion
 
 class AI
-{
-    private static Direction[] AllDirections = new Direction[4] { Direction.E, Direction.N, Direction.S, Direction.W };
-
+{   
     private readonly GameState _gameState;
-    
-
+ 
     public AI(GameState gameState)
     {
         _gameState = gameState;
@@ -322,34 +312,7 @@ class AI
         var selectedMove = SelectMove();
         actions.Add(selectedMove);
 
-        var usePowers = SelectPower();
-        actions.AddRange(usePowers);
-
         return actions;
-    }
-
-    private List<Action> SelectPower()
-    {
-        var actions = new List<Action>();
-
-        if (_gameState.TorpedoAvailable)
-        {
-            var torpedoPosition = SelectTorpedoTarget();
-            actions.Add(new Torpedo(torpedoPosition));
-        }
-
-        return actions;
-    }
-
-    private Position SelectTorpedoTarget()
-    {
-        var myPosition = _gameState.MyPosition;
-
-        var positions = Map.GetWaterPositionsAround(myPosition, Torpedo.Range - 1, Torpedo.Range);
-
-        var random = new Random();
-
-        return positions[ random.Next(0, positions.Count)];
     }
 
     private Action SelectMove()
@@ -362,48 +325,97 @@ class AI
             return new Surface();
         }
 
-        if (History.LastOpponentTorpedoPosition != Position.None)
-        {   
-            Player.Debug($"Move as close as possible to the last opponent torpedo at ({History.LastOpponentTorpedoPosition.ToString()})");
-            return MoveTowardPosition(possibleMoves, History.LastOpponentTorpedoPosition);
+        if (possibleMoveCount == 1)
+        {
+            return new Move(possibleMoves.Single().Item2, Power.TORPEDO);
         }
 
-        return RandomMove(possibleMoves, possibleMoveCount);
-
+        return EvaluateBestMove(possibleMoves);
     }
 
-    private static Action RandomMove(List<(Direction, Position)> possibleMoves, int possibleMoveCount)
+    private static Action EvaluateBestMove(List<(Position, Direction)> possibleMoves)
     {
-        Player.Debug("Random move");
+        var bestDirection = Direction.N;
+        var bestScore = 0;
 
-        var random = new Random();
-        var randomDirection = possibleMoves[random.Next(0, possibleMoveCount - 1)].Item1;
+        foreach (var possibleMove in possibleMoves)
+        {
+            var floodFill = new FloodFill();
+            var filledRegion = floodFill.Run(possibleMove.Item1);
 
-        return new Move(randomDirection, Power.TORPEDO);
+            var score = filledRegion.Count;
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestDirection = possibleMove.Item2;
+            }
+        }
+
+        return new Move(bestDirection, Power.TORPEDO);
     }
 
-    private static Action MoveTowardPosition(List<(Direction, Position)> possibleMoves, Position targetPosition)
-    {
-        var move = possibleMoves
-                    .OrderBy(x => x.Item2.DistanceTo(targetPosition))
-                    .First();
-
-        return new Move(move.Item1, Power.TORPEDO);
-    }
-
-    private List<(Direction, Position)> GetPossibleDirectionsForMove()
+    private List<(Position, Direction)> GetPossibleDirectionsForMove()
     {
         var possibleDirections = new List<Direction>();
         var myPosition = _gameState.MyPosition;
 
-        var waterNeighborPositions = AllDirections
-            .Select(direction =>  (direction, Map.GetNeighborPosition(myPosition, direction)))
-            .Where(x => x.Item2 != Position.OutOfBOund && Map.IsWater(x.Item2))
-            .Where(x => History.VisitedPositions.Contains(x.Item2) == false);
+        var waterNeighborPositions = Map.GetNeighborPositions(myPosition)
+            .Where(x => Map.IsWater(x.Item1))
+            .Where(x => History.VisitedPositions.Contains(x.Item1) == false);
 
         return waterNeighborPositions.ToList();
     }
 }
+
+public class FloodFill
+{
+    public HashSet<Position> _alreadyVisitedPositions = History.VisitedPositions;
+
+    public HashSet<Position> _remainingPositionsToVisit = new HashSet<Position>();
+
+    /// <summary>
+    /// Return the filled positions
+    /// </summary>
+    /// <param name="startPosition"></param>
+    /// <returns></returns>
+    public HashSet<Position> Run(Position startPosition)
+    {
+        if (_alreadyVisitedPositions.Contains(startPosition))
+            return _remainingPositionsToVisit;
+
+        // Set the color of node to replacement-color.
+        _remainingPositionsToVisit.Add(startPosition);
+
+        var q = new Queue<Position>();
+        q.Enqueue(startPosition);
+
+        while(q.Count > 0)
+        {
+            var currentPosition = q.Dequeue();
+
+            var neighbors = Map.GetNeighborPositions(currentPosition)
+                .Where(x => Map.IsWater(x.Item1))
+                .ToList();
+
+            foreach(var neighbor in neighbors)
+            {
+                if(_alreadyVisitedPositions.Contains(neighbor.Item1) == false)
+                {
+                    if(_remainingPositionsToVisit.Contains(neighbor.Item1) == false)
+                    {
+                        _remainingPositionsToVisit.Add(neighbor.Item1);
+                        q.Enqueue(neighbor.Item1);
+                    }
+                }
+
+            }
+        }
+
+        return _remainingPositionsToVisit;
+    }
+}
+
 
 public static class History
 {
@@ -424,6 +436,13 @@ public static class History
 
 class Player
 {
+    public static Direction[] AllDirections = new[]
+    {
+        Direction.E,
+        Direction.N,
+        Direction.S, Direction.W
+    };
+
     public static void Debug(string message)
     {
         Console.Error.WriteLine(message);
