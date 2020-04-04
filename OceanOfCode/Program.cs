@@ -389,18 +389,29 @@ class AI
     {
         var bestDirection = Direction.N;
         var bestScore = 0;
+        var bestFilledRegion = new HashSet<Position>();
 
         foreach (var possibleMove in possibleMoves)
         {
-            var floodFill = new FloodFill();
-            var filledRegion = floodFill.Run(possibleMove.Item1);
-
-            var score = filledRegion.Count;
-
-            if (score > bestScore)
+            if (bestFilledRegion.Contains(possibleMove.Item1))
             {
-                bestScore = score;
-                bestDirection = possibleMove.Item2;
+                //the possible move result in the same bestfilled region
+                //Do nothing
+            }
+            else
+            {
+                var floodFillEngine = new FloodFillEngine();
+
+                var filledRegion = floodFillEngine.Run(possibleMove.Item1);
+
+                var score = filledRegion.Count;
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestDirection = possibleMove.Item2;
+                    bestFilledRegion = filledRegion;
+                }
             }
         }
 
@@ -444,7 +455,7 @@ class AI
     }
 }
 
-public class FloodFill
+public class FloodFillEngine
 {
     public HashSet<Position> _alreadyVisitedPositions = History.VisitedPositions;
 
