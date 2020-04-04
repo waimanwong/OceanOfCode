@@ -225,8 +225,15 @@ public abstract class Action
                     break;
 
                 case "SURFACE":
-                    var sector = int.Parse(tokens[1]);
-                    actions.Add(new Surface(sector));
+                    actions.Add(new Surface(int.Parse(tokens[1])));
+                    break;
+
+                case "SONAR":
+                    actions.Add(new Sonar(int.Parse(tokens[1])));
+                    break;
+
+                case "SILENCE":
+                    actions.Add(new Silence());
                     break;
 
                 default:
@@ -294,6 +301,42 @@ class Torpedo: Action
         return $"TORPEDO {TargetPosition.ToString()}";
     }
 }
+
+class Sonar : Action
+{
+    private readonly int _sector;
+
+    public Sonar(int sector)
+    {
+        _sector = sector;
+    }
+
+    public override string ToString()
+    {
+        return $"SONAR {_sector.ToString()}";
+    }
+}
+
+class Silence :Action
+{
+    private Direction? _direction;
+
+    public Silence()
+    {
+        _direction = null;
+    }
+
+    public Silence(Direction direction)
+    {
+        _direction = direction;
+    }
+
+    public override string ToString()
+    {
+        return $"SILENCE {_direction.ToString()} 4";
+    }
+}
+
 #endregion
 
 class AI
