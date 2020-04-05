@@ -940,7 +940,7 @@ class Player
         // game loop
         while (true)
         {
-            MySubmarine.Debug();
+            //MySubmarine.Debug();
 
             string line = Console.ReadLine();
 
