@@ -102,8 +102,16 @@ static class Map
     {
         var (x, y) = (coord.x, coord.y);
 
-        return Rows[y][x] == Water;
+        return IsWater(x, y);
     }
+
+    public static bool IsWater(int x,int y)
+    {
+        return (0 <= x && x < Width) &&
+            (0 <= y && y < Height) &&
+            Rows[y][x] == Water;
+    }
+
         
     public static bool IsIsland(Position coord)
     {
@@ -112,6 +120,11 @@ static class Map
         return Rows[y][x] == Island;
     }
 
+    /// <summary>
+    /// Returns neighbors positions whether map or land
+    /// </summary>
+    /// <param name="fromPosition"></param>
+    /// <returns></returns>
     public static List<(Position, Direction)> GetNeighborPositions(Position fromPosition)
     {
         var neighborPositions = new List<(Position, Direction)>(4);
@@ -173,6 +186,35 @@ static class Map
         return currentPosition;
     }
 
+    public static (Position, Position) GetSectorBounds(int sector)
+    {
+        switch (sector)
+        {
+            case 1:
+                return (new Position(0, 0), new Position(4, 4));
+            case 2:
+                return (new Position(5, 0), new Position(9, 4));
+            case 3:
+                return (new Position(10, 0), new Position(14, 4));
+
+            case 4:
+                return (new Position(0, 5), new Position(4, 9));
+            case 5:
+                return (new Position(5, 5), new Position(9, 9));
+            case 6:
+                return (new Position(10, 5), new Position(14, 9));
+
+            case 7:
+                return (new Position(0, 10), new Position(4, 14));
+            case 8:
+                return (new Position(5, 10), new Position(9, 14));
+            case 9:
+                return (new Position(10, 10), new Position(14, 14));
+
+            default:
+                throw new NotSupportedException();
+        }
+    }
 }
 
 class StartingPositionComputer
@@ -192,7 +234,8 @@ class StartingPositionComputer
             }
             else
             {
-                var fillEngine = new FloodFillEngine();
+                var noVisitedPositions = new HashSet<Position>();
+                var fillEngine = new FloodFillEngine(noVisitedPositions);
                 var filledRegion = fillEngine.Run(corner);
 
                 if(filledRegion.Count > bestFilledRegion.Count)
@@ -212,27 +255,32 @@ class GameState
     public readonly Position MyPosition;
     public readonly List<Action> OpponentActions;
 
-    public readonly int TorpedoCooldown;
-    public readonly int SonarCooldown;
-    public readonly int SilenceCooldown;
+    private readonly int _torpedoCooldown;
+    private readonly int _sonarCooldown;
+    private readonly int _silenceCooldown;
+    private readonly int _mineCooldown;
 
     public GameState(Position myPosition, List<Action> opponentActions, 
-        int torpedoCooldown, int sonarCooldown, int silenceCooldown)
+        int torpedoCooldown, int sonarCooldown, int silenceCooldown, int mineCooldown)
     {
         MyPosition = myPosition;
         OpponentActions = opponentActions;
 
-        TorpedoCooldown = torpedoCooldown;
-        SonarCooldown = sonarCooldown;
-        SilenceCooldown = silenceCooldown;
+        _torpedoCooldown = torpedoCooldown;
+        _sonarCooldown = sonarCooldown;
+        _silenceCooldown = silenceCooldown;
+        _mineCooldown = mineCooldown;
     }
 
-    public bool TorpedoAvailable => TorpedoCooldown == 0;
+    public bool TorpedoAvailable => _torpedoCooldown == 0;
+    public bool SonarAvailable => _sonarCooldown == 0;
+    public bool SilenceAvailable => _silenceCooldown == 0;
+    public bool MineAvailable => _mineCooldown == 0;
 }
 
 public enum Direction { N, S, E, W }
 
-public enum Power { UNKNOWN, TORPEDO, SILENCE, SONAR }
+public enum Power { UNKNOWN, TORPEDO, SILENCE, SONAR, MINE}
 
 #region actions
 public abstract class Action
@@ -253,29 +301,27 @@ public abstract class Action
             {
                 case "MOVE":
                     Enum.TryParse<Direction>(tokens[1], out var direction);
-                    actions.Add(new Move(direction, Power.UNKNOWN));
+                    actions.Add(new MoveAction(direction, Power.UNKNOWN, Position.None));
                     break;
 
                 case "TORPEDO":
                     var x = int.Parse(tokens[1]);
                     var y = int.Parse(tokens[2]);
                     var position = new Position(x, y);
-                    actions.Add(new Torpedo(position));
+                    actions.Add(new TorpedoAction(position));
 
-                    History.LastOpponentTorpedoPosition = position;
-                    
                     break;
 
                 case "SURFACE":
-                    actions.Add(new Surface(int.Parse(tokens[1])));
+                    actions.Add(new SurfaceAction(int.Parse(tokens[1])));
                     break;
 
                 case "SONAR":
-                    actions.Add(new Sonar(int.Parse(tokens[1])));
+                    actions.Add(new SonarAction(int.Parse(tokens[1])));
                     break;
 
                 case "SILENCE":
-                    actions.Add(new Silence());
+                    actions.Add(new SilenceAction());
                     break;
 
                 default:
@@ -294,33 +340,35 @@ public abstract class Action
     }
 }
 
-class Move : Action
+class MoveAction : Action
 {
-    private Direction _direction;
+    public readonly Direction Direction;
+    public readonly Position Position;
     private Power _power;
 
-    public Move(Direction d, Power power)
+    public MoveAction(Direction d, Power power, Position p)
     {
-        _direction = d;
+        Direction = d;
+        Position = p;
         _power = power;
     }
 
     public override string ToString()
     {
-        return $"MOVE {_direction.ToString()} {_power.ToString()}";
+        return $"MOVE {Direction.ToString()} {_power.ToString()}";
     }
 }
 
-class Surface : Action
+class SurfaceAction : Action
 {
     public readonly int sector;
 
-    public Surface(int sector)
+    public SurfaceAction(int sector)
     {
         this.sector = sector;
     }
 
-    public Surface() : this(-1) { }
+    public SurfaceAction() : this(-1) { }
 
     public override string ToString()
     {
@@ -328,12 +376,12 @@ class Surface : Action
     }
 }
 
-class Torpedo: Action
+class TorpedoAction: Action
 {
     public static int Range = 4;
     public readonly Position TargetPosition;
 
-    public Torpedo(Position position)
+    public TorpedoAction(Position position)
     {
         TargetPosition = position;
     }
@@ -344,11 +392,11 @@ class Torpedo: Action
     }
 }
 
-class Sonar : Action
+class SonarAction : Action
 {
     private readonly int _sector;
 
-    public Sonar(int sector)
+    public SonarAction(int sector)
     {
         _sector = sector;
     }
@@ -359,25 +407,44 @@ class Sonar : Action
     }
 }
 
-class Silence :Action
+class SilenceAction :Action
 {
-    private Direction? _direction;
+    private readonly Direction? _direction;
+    public readonly Position Position;
     private int _moves;
 
-    public Silence()
+    public SilenceAction()
     {
         _direction = null;
     }
 
-    public Silence(Direction direction, int moves)
+    public SilenceAction(Direction direction, int moves, Position position)
     {
         _direction = direction;
         _moves = moves;
+        Position = position;
     }
 
     public override string ToString()
     {
         return $"SILENCE {_direction.ToString()} {_moves.ToString()}";
+    }
+}
+
+class MineAction : Action
+{
+    private readonly Direction _direction;
+    public readonly Position Position;
+
+    public MineAction(Direction direction, Position p)
+    {
+        _direction = direction;
+        Position = p;
+    }
+
+    public override string ToString()
+    {
+        return $"MINE {_direction.ToString()}";
     }
 }
 
@@ -395,33 +462,134 @@ class AI
     public List<Action> ComputeActions()
     {
         var actions = new List<Action>();
+        var myPosition = _gameState.MyPosition;
 
-        var selectedMove = SelectMove();
-        actions.Add(selectedMove);
+        var selectedMoveAction = SelectMoveAction(MySubmarine.VisitedPositions, myPosition);
+        actions.Add(selectedMoveAction);
+
+        var selectedActions = SelectPowerActions(MySubmarine.VisitedPositions, selectedMoveAction);
+        actions.AddRange(selectedActions);
 
         return actions;
     }
 
-    private Action SelectMove()
+    private List<Action> SelectPowerActions(HashSet<Position> visitedPositions, Action action)
     {
-        var possibleMoves = GetPossibleDirectionsForMove();
+        var powerActions = new List<Action>();
+
+        if (_gameState.MineAvailable)
+        {
+            if (TrySelectMinePosition(out var position, out var direction))
+            {
+                powerActions.Add(new MineAction(direction, position));
+            }
+        }
+        if(_gameState.SilenceAvailable)
+        {
+            if (TryComputeSilenceAction(visitedPositions, action, out var silenceAction))
+            {
+                powerActions.Add(silenceAction);
+            }
+        }
+        return powerActions;
+    }
+
+    private bool TryComputeSilenceAction(HashSet<Position> visitedPositions, Action previousAction, out SilenceAction silenceAction)
+    {
+        silenceAction = null;
+
+        if (previousAction is MoveAction)
+        {
+            var moveAction = (MoveAction)previousAction;
+            var positionAfterMove = moveAction.Position;
+
+            visitedPositions.Add(positionAfterMove);
+
+            var action = SelectMoveAction(visitedPositions, positionAfterMove);
+            if (action is MoveAction)
+            {
+                var newMoveAction = (MoveAction)action;
+                silenceAction = new SilenceAction(newMoveAction.Direction, 1, newMoveAction.Position);
+            }
+        }
+        return silenceAction != null;
+    }
+
+    private  bool TrySelectMinePosition(out Position position, out Direction direction )
+    {
+        var myPosition = _gameState.MyPosition;
+        var neighborWaterPositions = Map.GetNeighborPositions(myPosition)
+            .Where(x => Map.IsWater(x.Item1))
+            .ToList();
+
+        int maxCoverage = -1;
+        position = Position.None;
+        direction = Direction.E;
+
+        foreach (var item in neighborWaterPositions)
+        {
+            var possibleMinePosition = item.Item1;
+            var possibleMineDirection = item.Item2;
+
+            if(MySubmarine.HasPlacedMineAt(possibleMinePosition) == false)
+            {
+                //Maximize area of blast
+                var newMines = MySubmarine.GetPlacedMines();
+                newMines.Add(possibleMinePosition);
+
+                var coverage = ComputeCoveredAreaByMines(newMines);
+
+                Player.Debug($"Mine at {possibleMineDirection.ToString()}, coverage = {coverage.ToString()}");
+
+                var coverageIsBetter = coverage > maxCoverage;
+                
+                if(coverageIsBetter)
+                {
+                    maxCoverage = coverage;
+                    position = possibleMinePosition;
+                    direction = possibleMineDirection;
+                }
+            }
+        }
+
+        return maxCoverage > 0 ;
+    }
+
+    private static int ComputeCoveredAreaByMines(HashSet<Position> minePositions)
+    {
+        var blastedPositions = new HashSet<Position>();
+
+        foreach(var mine in minePositions)
+        {
+            foreach(var delta in Player.EightDeltas)
+            {
+                var blastedPosition = new Position(mine.x + delta.Item1, mine.y + delta.Item2);
+                if(Map.IsInMap(blastedPosition) && Map.IsWater(blastedPosition))
+                {
+                    blastedPositions.Add(blastedPosition);
+                }
+            }
+        }
+
+        return blastedPositions.Count;
+    }
+
+    private Action SelectMoveAction(HashSet<Position> visitedPositions, Position fromPosition)
+    {
+        var possibleMoves = GetPossibleDirectionsForMove(visitedPositions, fromPosition);
         var possibleMoveCount = possibleMoves.Count;
 
         if (possibleMoveCount == 0)
         {
-            return new Surface();
+            return new SurfaceAction();
         }
 
         if (possibleMoveCount == 1)
         {
-            return new Move(possibleMoves.Single().Item2, SelectPowerToCharge());
+            var possibleMove = possibleMoves.Single();
+            return new MoveAction(possibleMove.Item2, SelectPowerToCharge(), possibleMove.Item1);
         }
 
-        return EvaluateBestMove(possibleMoves);
-    }
-
-    private Action EvaluateBestMove(List<(Position, Direction)> possibleMoves)
-    {
         var bestMove = possibleMoves.First();
         var bestScore = 0;
         var bestFilledRegion = new HashSet<Position>();
@@ -433,7 +601,7 @@ class AI
                 //the possible move result in the same bestfilled region
                 var freedomScore = new Func<Position, int>(pos =>
                        Map.GetNeighborPositions(pos)
-                           .Count(p => Map.IsWater(p.Item1) && History.VisitedPositions.Contains(p.Item1) == false));
+                           .Count(p => Map.IsWater(p.Item1) && visitedPositions.Contains(p.Item1) == false));
 
                 var bestPositionFreedomScore = freedomScore(bestMove.Item1);
                 var currentMoveFreedomScore = freedomScore(possibleMove.Item1);
@@ -446,7 +614,7 @@ class AI
             }
             else
             {
-                var floodFillEngine = new FloodFillEngine();
+                var floodFillEngine = new FloodFillEngine(visitedPositions);
 
                 var filledRegion = floodFillEngine.Run(possibleMove.Item1);
 
@@ -462,41 +630,40 @@ class AI
             }
         }
 
-        if(_gameState.SilenceCooldown == 0)
-        {
-            //Convert to Silence Move
-            return new Silence(direction: bestMove.Item2, 1);
-        }
-
-        return new Move(bestMove.Item2, SelectPowerToCharge());
+        return new MoveAction(bestMove.Item2, SelectPowerToCharge(), bestMove.Item1);
     }
 
     private Power SelectPowerToCharge()
     {
-        if(_gameState.SilenceCooldown != 0)
+        if (_gameState.SilenceAvailable == false)
         {
             return Power.SILENCE;
         }
-        if(_gameState.SonarCooldown != 0)
+
+        if (_gameState.MineAvailable == false)
+        {
+            return Power.MINE;
+        }
+
+        if (_gameState.SonarAvailable == false)
         {
             return Power.SONAR;
         }
-        if(_gameState.TorpedoCooldown != 0)
+        
+        if (_gameState.TorpedoAvailable == false)
         {
             return Power.TORPEDO;
         }
 
-        return Power.SILENCE;
+        return Power.MINE;
     }
 
-    private List<(Position, Direction)> GetPossibleDirectionsForMove()
+    private List<(Position, Direction)> GetPossibleDirectionsForMove(HashSet<Position> visitedPositions, Position myPosition)
     {
         var possibleDirections = new List<Direction>();
-        var myPosition = _gameState.MyPosition;
-
         var waterNeighborPositions = Map.GetNeighborPositions(myPosition)
             .Where(x => Map.IsWater(x.Item1))
-            .Where(x => History.VisitedPositions.Contains(x.Item1) == false);
+            .Where(x => visitedPositions.Contains(x.Item1) == false);
 
         return waterNeighborPositions.ToList();
     }
@@ -504,9 +671,14 @@ class AI
 
 public class FloodFillEngine
 {
-    public HashSet<Position> _alreadyVisitedPositions = History.VisitedPositions;
+    private readonly HashSet<Position> _alreadyVisitedPositions;
+    private readonly HashSet<Position> _remainingPositionsToVisit;
 
-    public HashSet<Position> _remainingPositionsToVisit = new HashSet<Position>();
+    public FloodFillEngine(HashSet<Position> visitedPosition)
+    {
+        _alreadyVisitedPositions = visitedPosition;
+        _remainingPositionsToVisit = new HashSet<Position>();
+    }
 
     /// <summary>
     /// Return the filled positions
@@ -550,31 +722,189 @@ public class FloodFillEngine
     }
 }
 
-
-public static class History
+public static class OpponentMap
 {
-    public static readonly HashSet<Position> VisitedPositions = new HashSet<Position>();
+    private static HashSet<Position> _possiblePositions = new HashSet<Position>();
 
-    public static Position LastOpponentTorpedoPosition = Position.None;
+    public static void ResetPossiblePositions()
+    {
+        _possiblePositions = Map.PossibleMovesByCount.Values
+            .SelectMany(x => x)
+            .ToHashSet();
+    }
+
+    public static void EvaluateNewPossiblePositions(Action action)
+    {
+        if(action is MoveAction)
+        {
+            MoveAction moveAction = (MoveAction)action;
+            var (dx, dy) = Player.Deltas[moveAction.Direction];
+            _possiblePositions = _possiblePositions
+                .Where(p => {
+                    var previousPosition = new Position(p.x - dx, p.y - dy);
+                    return Map.IsWater(previousPosition) && _possiblePositions.Contains(previousPosition); 
+                })
+                .ToHashSet();
+        }
+        else if (action is SurfaceAction)
+        {
+            ResetPossiblePositions();
+
+            SurfaceAction surfaceAction = (SurfaceAction)action;
+            var (topLeftPosition, bottomRigthPosition) = Map.GetSectorBounds(surfaceAction.sector);
+            _possiblePositions = _possiblePositions
+                .Where(p => (topLeftPosition.x <= p.x && p.x <= bottomRigthPosition.x) &&
+                           (topLeftPosition.y <= p.y && p.y <= bottomRigthPosition.y))
+                .ToHashSet();
+        }
+        else if(action is TorpedoAction)
+        {
+            TorpedoAction torpedoAction = (TorpedoAction)action;
+            _possiblePositions = _possiblePositions
+                .Where(p => p.DistanceTo(torpedoAction.TargetPosition) <= 4)
+                .ToHashSet();
+        }
+        else if(action is SilenceAction)
+        {
+            ResetPossiblePositions();
+        }
+        else
+        {
+            Player.Debug($"ignore opponent: {action.GetType().ToString()}");
+        }
+    }
+
+    public static void Debug()
+    {
+        StringBuilder row = new StringBuilder();
+
+        Player.Debug("possible opponent map:");
+        for (int y = 0; y < Map.Height; y++)
+        {
+            row.Clear();
+            row.Append('|');
+            for (int x = 0; x < Map.Width; x++)
+            {
+                if(_possiblePositions.Contains(new Position(x,y)))
+                {
+                    row.Append(' ');
+                }
+                else
+                {
+                    row.Append('X');
+                }
+            }
+            row.Append('|');
+            Player.Debug(row.ToString());
+        }
+        Player.Debug("---------------------------");
+    }
+}
+
+public static class MySubmarine
+{
+    private static readonly HashSet<Position> _visitedPositions = new HashSet<Position>();
+
+    public static readonly HashSet<Position> MinePositions = new HashSet<Position>();
+
+    public static void UpdateSubMarineState(List<Action> actions)
+    {
+        if (actions.OfType<SurfaceAction>().Any())
+        {
+            MySubmarine.ResetVisitedPositions();
+        }
+        var mineAction = actions.OfType<MineAction>().SingleOrDefault();
+        if (mineAction != null)
+        {
+            MySubmarine.PlaceMine(mineAction.Position);
+        }
+        var silenceAction = actions.OfType<SilenceAction>().SingleOrDefault();
+        if(silenceAction != null)
+        {
+            MySubmarine.Visit(silenceAction.Position);
+        }
+        var moveAction = actions.OfType<MoveAction>().SingleOrDefault();
+        if (moveAction != null)
+        {
+            MySubmarine.Visit(moveAction.Position);
+        }
+    }
 
     public static void Visit(Position position)
     {
-        VisitedPositions.Add(position);
+        _visitedPositions.Add(position);
+    }
 
-        if(LastOpponentTorpedoPosition == position)
+    public static void ResetVisitedPositions()
+    {
+        _visitedPositions.Clear();
+    }
+
+    public static HashSet<Position> VisitedPositions => _visitedPositions.ToHashSet();
+
+    public static bool HasPlacedMineAt(Position position)
+    {
+        return MinePositions.Contains(position);
+    }
+
+    public static void PlaceMine(Position position)
+    {
+        MinePositions.Add(position);
+    }
+
+    public static void TriggerMine(Position position)
+    {
+        MinePositions.Remove(position);
+    }
+
+    public static HashSet<Position> GetPlacedMines()
+    {
+        return MinePositions.ToHashSet();
+    }
+
+    public static void Debug()
+    {
+        StringBuilder row = new StringBuilder();
+
+        Player.Debug("possible mysubmarine map:");
+        for (int y = 0; y < Map.Height; y++)
         {
-            LastOpponentTorpedoPosition = Position.None;
+            row.Clear();
+            row.Append('|');
+            for (int x = 0; x < Map.Width; x++)
+            {
+                if (_visitedPositions.Contains(new Position(x, y)))
+                {
+                    row.Append('X');
+                }
+                else
+                {
+                    row.Append(' ');
+                }
+            }
+            row.Append('|');
+            Player.Debug(row.ToString());
         }
+        Player.Debug("---------------------------");
     }
 }
 
 class Player
 {
-    public static Direction[] AllDirections = new[]
+    public static Direction[] AllDirections = new[] { Direction.E, Direction.N, Direction.S, Direction.W };
+    public static Dictionary<Direction, (int, int)> Deltas = new Dictionary<Direction, (int, int)>
     {
-        Direction.E,
-        Direction.N,
-        Direction.S, Direction.W
+        {  Direction.S, (0, 1) },
+        {  Direction.W, (-1, 0) },
+        {  Direction.E, (1, 0) },
+        {  Direction.N, (0, -1) },
+    };
+
+    public static (int, int)[] EightDeltas = new (int, int)[]
+    {
+        (-1,-1), (0, -1), (1, -1),
+        (-1, 0),          (1,  0),
+        (-1, 1), (0,  1), (1,  1)
     };
 
     public static void Debug(string message)
@@ -604,9 +934,14 @@ class Player
             .EvaluateBestPosition();
         Console.WriteLine(initialPosition.ToString());
 
+        OpponentMap.ResetPossiblePositions();
+        //OpponentMap.Debug();
+
         // game loop
         while (true)
         {
+            MySubmarine.Debug();
+
             string line = Console.ReadLine();
 
             Debug(line);
@@ -614,6 +949,12 @@ class Player
             var txtOpponentOrders = Console.ReadLine();
 
             var opponentOrders = Action.Parse(txtOpponentOrders);
+            opponentOrders.Reverse();
+            foreach (var action in opponentOrders)
+            {
+                OpponentMap.EvaluateNewPossiblePositions(action);
+            }
+            //OpponentMap.Debug();
 
             inputs = line.Split(' ');
             int x = int.Parse(inputs[0]);
@@ -621,8 +962,8 @@ class Player
 
             var myPosition = new Position(x, y);
 
-            History.Visit(myPosition);
-            
+            MySubmarine.Visit(myPosition);
+
             int myLife = int.Parse(inputs[2]);
             int oppLife = int.Parse(inputs[3]);
             int torpedoCooldown = int.Parse(inputs[4]);
@@ -634,18 +975,16 @@ class Player
             // To debug: Console.Error.WriteLine("Debug messages...");
 
             var gameState = new GameState(
-                myPosition, opponentOrders, 
-                torpedoCooldown, sonarCooldown, silenceCooldown);
+                myPosition, opponentOrders,
+                torpedoCooldown, sonarCooldown, silenceCooldown, mineCooldown);
             var ai = new AI(gameState);
 
             var actions = ai.ComputeActions();
-            
-            if(actions.OfType<Surface>().Any())
-            {
-                History.VisitedPositions.Clear();
-            }
 
-            Console.WriteLine(Action.ToText( actions));
+            MySubmarine.UpdateSubMarineState(actions);
+
+            Console.WriteLine(Action.ToText(actions));
         }
     }
+
 }
