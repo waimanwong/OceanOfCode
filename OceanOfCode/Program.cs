@@ -48,6 +48,11 @@ public struct Position
     {
         return $"{x.ToString()} {y.ToString()}";
     }
+
+    public Position Translate(int dx, int dy)
+    {
+        return new Position(x + dx, y + dy);
+    }
 }
 
 static class Map
@@ -561,7 +566,7 @@ class AI
 
         foreach(var mine in minePositions)
         {
-            foreach(var delta in Player.EightDeltas)
+            foreach(var delta in Player.EightDirectionDeltas)
             {
                 var blastedPosition = new Position(mine.x + delta.Item1, mine.y + delta.Item2);
                 if(Map.IsInMap(blastedPosition) && Map.IsWater(blastedPosition))
@@ -738,10 +743,21 @@ public static class OpponentMap
         if(action is MoveAction)
         {
             MoveAction moveAction = (MoveAction)action;
-            var (dx, dy) = Player.Deltas[moveAction.Direction];
+            var (dx, dy) = Player.FourDirectionDeltas[moveAction.Direction];
+
+            //Add possible positions
+            var currentPossiblePositions = _possiblePositions.ToHashSet();
+            foreach (var currentPosition in currentPossiblePositions)
+            {
+                var newPosition = currentPosition.Translate(dx, dy);
+                if(Map.IsInMap(newPosition) && Map.IsWater(newPosition))
+                    _possiblePositions.Add(newPosition);
+            }
+
+            //Remove impossible positions
             _possiblePositions = _possiblePositions
                 .Where(p => {
-                    var previousPosition = new Position(p.x - dx, p.y - dy);
+                    var previousPosition = p.Translate(-dx,-dy);
                     return Map.IsWater(previousPosition) && _possiblePositions.Contains(previousPosition); 
                 })
                 .ToHashSet();
@@ -892,7 +908,7 @@ public static class MySubmarine
 class Player
 {
     public static Direction[] AllDirections = new[] { Direction.E, Direction.N, Direction.S, Direction.W };
-    public static Dictionary<Direction, (int, int)> Deltas = new Dictionary<Direction, (int, int)>
+    public static Dictionary<Direction, (int, int)> FourDirectionDeltas = new Dictionary<Direction, (int, int)>
     {
         {  Direction.S, (0, 1) },
         {  Direction.W, (-1, 0) },
@@ -900,7 +916,7 @@ class Player
         {  Direction.N, (0, -1) },
     };
 
-    public static (int, int)[] EightDeltas = new (int, int)[]
+    public static (int, int)[] EightDirectionDeltas = new (int, int)[]
     {
         (-1,-1), (0, -1), (1, -1),
         (-1, 0),          (1,  0),
@@ -935,18 +951,19 @@ class Player
         Console.WriteLine(initialPosition.ToString());
 
         OpponentMap.ResetPossiblePositions();
-        //OpponentMap.Debug();
 
         // game loop
         while (true)
         {
             //MySubmarine.Debug();
 
-            string line = Console.ReadLine();
+            var line = Console.ReadLine();
+            var sonarLine = Console.ReadLine();
+            var txtOpponentOrders = Console.ReadLine();
 
             Debug(line);
-            Debug($"Sonar Rsult: {Console.ReadLine()}");
-            var txtOpponentOrders = Console.ReadLine();
+            Debug($"Sonar Rsult: {sonarLine}");
+            Debug($"txtOpponentOrders: {txtOpponentOrders}");
 
             var opponentOrders = Action.Parse(txtOpponentOrders);
             opponentOrders.Reverse();
@@ -954,7 +971,7 @@ class Player
             {
                 OpponentMap.EvaluateNewPossiblePositions(action);
             }
-            //OpponentMap.Debug();
+            OpponentMap.Debug();
 
             inputs = line.Split(' ');
             int x = int.Parse(inputs[0]);
