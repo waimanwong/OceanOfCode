@@ -257,7 +257,7 @@ class StartingPositionComputer
 
 class GameState
 {
-    public readonly Position MyPosition;
+    public Position MyPosition;
     public readonly List<Action> OpponentActions;
 
     private readonly int _torpedoCooldown;
@@ -281,6 +281,12 @@ class GameState
     public bool SonarAvailable => _sonarCooldown == 0;
     public bool SilenceAvailable => _silenceCooldown == 0;
     public bool MineAvailable => _mineCooldown == 0;
+
+    public void MoveMySubmarine(Position newPosition)
+    {
+        MyPosition = newPosition;
+    }
+
 }
 
 public enum Direction { N, S, E, W }
@@ -306,7 +312,7 @@ public abstract class Action
             {
                 case "MOVE":
                     Enum.TryParse<Direction>(tokens[1], out var direction);
-                    actions.Add(new MoveAction(direction, Power.UNKNOWN, Position.None));
+                    actions.Add(new MoveAction(direction, Power.UNKNOWN));
                     break;
 
                 case "TORPEDO":
@@ -348,13 +354,11 @@ public abstract class Action
 class MoveAction : Action
 {
     public readonly Direction Direction;
-    public readonly Position Position;
     private Power _power;
 
-    public MoveAction(Direction d, Power power, Position p)
+    public MoveAction(Direction d, Power power)
     {
         Direction = d;
-        Position = p;
         _power = power;
     }
 
@@ -415,7 +419,6 @@ class SonarAction : Action
 class SilenceAction :Action
 {
     private readonly Direction? _direction;
-    public readonly Position Position;
     private int _moves;
 
     public SilenceAction()
@@ -423,11 +426,10 @@ class SilenceAction :Action
         _direction = null;
     }
 
-    public SilenceAction(Direction direction, int moves, Position position)
+    public SilenceAction(Direction direction, int moves)
     {
         _direction = direction;
         _moves = moves;
-        Position = position;
     }
 
     public override string ToString()
@@ -439,12 +441,10 @@ class SilenceAction :Action
 class MineAction : Action
 {
     private readonly Direction _direction;
-    public readonly Position Position;
 
-    public MineAction(Direction direction, Position p)
+    public MineAction(Direction direction)
     {
         _direction = direction;
-        Position = p;
     }
 
     public override string ToString()
@@ -467,31 +467,46 @@ class AI
     public List<Action> ComputeActions()
     {
         var actions = new List<Action>();
-        var myPosition = _gameState.MyPosition;
 
-        var selectedMoveAction = SelectMoveAction(MySubmarine.VisitedPositions, myPosition);
+        var selectedMoveAction = SelectMoveAction(MySubmarine.VisitedPositions);
         actions.Add(selectedMoveAction);
 
-        var selectedActions = SelectPowerActions(MySubmarine.VisitedPositions, selectedMoveAction);
+        var selectedActions = SelectPowerActions(MySubmarine.VisitedPositions);
         actions.AddRange(selectedActions);
 
         return actions;
     }
 
-    private List<Action> SelectPowerActions(HashSet<Position> visitedPositions, Action action)
+    private List<Action> SelectPowerActions(HashSet<Position> visitedPositions)
     {
         var powerActions = new List<Action>();
 
-        if (_gameState.MineAvailable)
+        //if (_gameState.MineAvailable)
+        //{
+        //    if (TrySelectMinePosition(out var position, out var direction))
+        //    {
+        //        powerActions.Add(PlaceMine((position, direction)));
+        //    }
+        //}
+
+        if (OpponentMap.TryGuessEnemyPosition(out var guessedEnemyPosition))
         {
-            if (TrySelectMinePosition(out var position, out var direction))
+            Player.Debug($"Enemy may be here: {guessedEnemyPosition.ToString()}");
+
+            if (_gameState.TorpedoAvailable)
             {
-                powerActions.Add(new MineAction(direction, position));
+                if (_gameState.MyPosition.DistanceTo(guessedEnemyPosition) <= 4 &&
+                    _gameState.MyPosition.DistanceTo(guessedEnemyPosition) > 1)
+                {
+                    powerActions.Add(LaunchTorpedo(guessedEnemyPosition));
+                }
             }
         }
+    
+
         if(_gameState.SilenceAvailable)
         {
-            if (TryComputeSilenceAction(visitedPositions, action, out var silenceAction))
+            if (TryComputeSilenceAction(visitedPositions, out var silenceAction))
             {
                 powerActions.Add(silenceAction);
             }
@@ -499,24 +514,17 @@ class AI
         return powerActions;
     }
 
-    private bool TryComputeSilenceAction(HashSet<Position> visitedPositions, Action previousAction, out SilenceAction silenceAction)
+    private bool TryComputeSilenceAction(HashSet<Position> visitedPositions, out SilenceAction silenceAction)
     {
         silenceAction = null;
 
-        if (previousAction is MoveAction)
+        var action = SelectMoveAction(visitedPositions);
+        if (action is MoveAction)
         {
-            var moveAction = (MoveAction)previousAction;
-            var positionAfterMove = moveAction.Position;
-
-            visitedPositions.Add(positionAfterMove);
-
-            var action = SelectMoveAction(visitedPositions, positionAfterMove);
-            if (action is MoveAction)
-            {
-                var newMoveAction = (MoveAction)action;
-                silenceAction = new SilenceAction(newMoveAction.Direction, 1, newMoveAction.Position);
-            }
+            var newMoveAction = (MoveAction)action;
+            silenceAction = new SilenceAction(newMoveAction.Direction, 1);
         }
+        
         return silenceAction != null;
     }
 
@@ -579,20 +587,21 @@ class AI
         return blastedPositions.Count;
     }
 
-    private Action SelectMoveAction(HashSet<Position> visitedPositions, Position fromPosition)
+    private Action SelectMoveAction(HashSet<Position> visitedPositions)
     {
+        var fromPosition = _gameState.MyPosition;
         var possibleMoves = GetPossibleDirectionsForMove(visitedPositions, fromPosition);
         var possibleMoveCount = possibleMoves.Count;
 
         if (possibleMoveCount == 0)
         {
-            return new SurfaceAction();
+            return SurfaceMySubmarine();
         }
 
         if (possibleMoveCount == 1)
         {
             var possibleMove = possibleMoves.Single();
-            return new MoveAction(possibleMove.Item2, SelectPowerToCharge(), possibleMove.Item1);
+            return MoveMySubmarine(possibleMove, SelectPowerToCharge());
         }
 
         var bestMove = possibleMoves.First();
@@ -635,11 +644,16 @@ class AI
             }
         }
 
-        return new MoveAction(bestMove.Item2, SelectPowerToCharge(), bestMove.Item1);
+        return MoveMySubmarine(bestMove, SelectPowerToCharge());
     }
 
     private Power SelectPowerToCharge()
     {
+        if (_gameState.TorpedoAvailable == false)
+        {
+            return Power.TORPEDO;
+        }
+
         if (_gameState.SilenceAvailable == false)
         {
             return Power.SILENCE;
@@ -655,11 +669,6 @@ class AI
             return Power.SONAR;
         }
         
-        if (_gameState.TorpedoAvailable == false)
-        {
-            return Power.TORPEDO;
-        }
-
         return Power.MINE;
     }
 
@@ -671,6 +680,35 @@ class AI
             .Where(x => visitedPositions.Contains(x.Item1) == false);
 
         return waterNeighborPositions.ToList();
+    }
+
+    private TorpedoAction LaunchTorpedo(Position position)
+    {
+        return new TorpedoAction(position);
+    }
+
+    private MineAction PlaceMine((Position, Direction ) place)
+    {
+        MySubmarine.PlaceMine(place.Item1);
+        return new MineAction(place.Item2);
+    }
+
+    private MoveAction MoveMySubmarine((Position, Direction) move, Power power)
+    {
+        var newPosition = move.Item1;
+
+        _gameState.MoveMySubmarine(newPosition);
+
+        MySubmarine.Visit(newPosition);
+
+        return new MoveAction(move.Item2, power);
+    }
+    
+    private SurfaceAction SurfaceMySubmarine()
+    {
+        MySubmarine.ResetVisitedPositions();
+
+        return new SurfaceAction();
     }
 }
 
@@ -815,6 +853,27 @@ public static class OpponentMap
         }
         Player.Debug("---------------------------");
     }
+
+    public static bool TryGuessEnemyPosition(out Position guessedEnenmyPosition)
+    {
+        guessedEnenmyPosition = Position.None;
+
+        foreach(var position in _possiblePositions)
+        {
+            var neighbors = Player.FourDirectionDeltas.Values
+                .Select(delta => position.Translate(delta.Item1, delta.Item2))
+                .Where(p => Map.IsInMap(p) && Map.IsWater(p));
+
+            var possibleNeighborCount = neighbors.Count(p => _possiblePositions.Contains(p));
+
+            if(possibleNeighborCount <= 2)
+            {
+                guessedEnenmyPosition = position;
+            }
+        }
+
+        return guessedEnenmyPosition != Position.None;
+    }
 }
 
 public static class MySubmarine
@@ -822,29 +881,6 @@ public static class MySubmarine
     private static readonly HashSet<Position> _visitedPositions = new HashSet<Position>();
 
     public static readonly HashSet<Position> MinePositions = new HashSet<Position>();
-
-    public static void UpdateSubMarineState(List<Action> actions)
-    {
-        if (actions.OfType<SurfaceAction>().Any())
-        {
-            MySubmarine.ResetVisitedPositions();
-        }
-        var mineAction = actions.OfType<MineAction>().SingleOrDefault();
-        if (mineAction != null)
-        {
-            MySubmarine.PlaceMine(mineAction.Position);
-        }
-        var silenceAction = actions.OfType<SilenceAction>().SingleOrDefault();
-        if(silenceAction != null)
-        {
-            MySubmarine.Visit(silenceAction.Position);
-        }
-        var moveAction = actions.OfType<MoveAction>().SingleOrDefault();
-        if (moveAction != null)
-        {
-            MySubmarine.Visit(moveAction.Position);
-        }
-    }
 
     public static void Visit(Position position)
     {
@@ -925,7 +961,7 @@ class Player
 
     public static void Debug(string message)
     {
-        Console.Error.WriteLine(message);
+        //Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)
@@ -961,9 +997,9 @@ class Player
             var sonarLine = Console.ReadLine();
             var txtOpponentOrders = Console.ReadLine();
 
-            Debug(line);
-            Debug($"Sonar Rsult: {sonarLine}");
-            Debug($"txtOpponentOrders: {txtOpponentOrders}");
+            //Debug(line);
+            //Debug($"Sonar Rsult: {sonarLine}");
+            //Debug($"txtOpponentOrders: {txtOpponentOrders}");
 
             var opponentOrders = Action.Parse(txtOpponentOrders);
             opponentOrders.Reverse();
@@ -971,7 +1007,8 @@ class Player
             {
                 OpponentMap.EvaluateNewPossiblePositions(action);
             }
-            OpponentMap.Debug();
+            
+            //OpponentMap.Debug();
 
             inputs = line.Split(' ');
             int x = int.Parse(inputs[0]);
@@ -997,8 +1034,6 @@ class Player
             var ai = new AI(gameState);
 
             var actions = ai.ComputeActions();
-
-            MySubmarine.UpdateSubMarineState(actions);
 
             Console.WriteLine(Action.ToText(actions));
         }
