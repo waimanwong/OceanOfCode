@@ -186,17 +186,6 @@ static class Map
             0 <= p.y && p.y < Height;
     }
 
-    public static Position[] GetWaterCorners()
-    {
-        return new Position[]
-        {
-            GetClosestWaterPosition( new Position(0,0), p => new Position(p.x + 1, p.y)),
-            GetClosestWaterPosition( new Position(Width - 1, 0), p => new Position(p.x, p.y + 1)),
-            GetClosestWaterPosition( new Position(Width - 1, Height - 1), p => new Position(p.x - 1, p.y)),
-            GetClosestWaterPosition( new Position(0, Height - 1), p=> new Position(p.x, p.y - 1))
-        };
-    }
-
     private static Position GetClosestWaterPosition(Position p, Func<Position, Position> nextPosition)
     {
         var currentPosition = p;
