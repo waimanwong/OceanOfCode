@@ -453,6 +453,21 @@ class MineAction : Action
     }
 }
 
+class TriggerAction: Action
+{
+    private Position _position;
+
+    public TriggerAction(Position position)
+    {
+        _position = position;
+    }
+
+    public override string ToString()
+    {
+        return $"TRIGGER {_position.ToString()}";
+    }
+}
+
 #endregion
 
 class AI
@@ -481,51 +496,15 @@ class AI
     {
         var powerActions = new List<Action>();
 
-        //if (_gameState.MineAvailable)
-        //{
-        //    if (TrySelectMinePosition(out var position, out var direction))
-        //    {
-        //        powerActions.Add(PlaceMine((position, direction)));
-        //    }
-        //}
-
-        if (OpponentMap.TryGuessEnemyPosition(out var guessedEnemyPosition))
+        if (_gameState.MineAvailable)
         {
-            Player.Debug($"Enemy may be here: {guessedEnemyPosition.ToString()}");
-
-            if (_gameState.TorpedoAvailable)
+            if (TrySelectMinePosition(out var position, out var direction))
             {
-                if (_gameState.MyPosition.DistanceTo(guessedEnemyPosition) <= 4 &&
-                    _gameState.MyPosition.DistanceTo(guessedEnemyPosition) > 1)
-                {
-                    powerActions.Add(LaunchTorpedo(guessedEnemyPosition));
-                }
+                powerActions.Add(PlaceMine((position, direction)));
             }
         }
-    
 
-        if(_gameState.SilenceAvailable)
-        {
-            if (TryComputeSilenceAction(visitedPositions, out var silenceAction))
-            {
-                powerActions.Add(silenceAction);
-            }
-        }
         return powerActions;
-    }
-
-    private bool TryComputeSilenceAction(HashSet<Position> visitedPositions, out SilenceAction silenceAction)
-    {
-        silenceAction = null;
-
-        var action = SelectMoveAction(visitedPositions);
-        if (action is MoveAction)
-        {
-            var newMoveAction = (MoveAction)action;
-            silenceAction = new SilenceAction(newMoveAction.Direction, 1);
-        }
-        
-        return silenceAction != null;
     }
 
     private  bool TrySelectMinePosition(out Position position, out Direction direction )
@@ -710,6 +689,16 @@ class AI
 
         return new SurfaceAction();
     }
+
+    private TriggerAction TriggerMine(Position p)
+    {
+        return new TriggerAction(p);
+    }
+
+    //private SilenceAction Silence(Direction direction, int moves)
+    //{
+    //    return new SilenceAction(direction, 1);
+    //}
 }
 
 public class FloodFillEngine
@@ -961,7 +950,7 @@ class Player
 
     public static void Debug(string message)
     {
-        //Console.Error.WriteLine(message);
+        Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)
@@ -1008,7 +997,7 @@ class Player
                 OpponentMap.EvaluateNewPossiblePositions(action);
             }
             
-            //OpponentMap.Debug();
+            OpponentMap.Debug();
 
             inputs = line.Split(' ');
             int x = int.Parse(inputs[0]);
