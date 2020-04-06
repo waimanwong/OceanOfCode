@@ -68,7 +68,7 @@ static class Map
     public static Dictionary<int, HashSet<Position>> PossibleMovesByCount;
 
     private static int[][] PossibleMoveCount;
-   
+
     public static void InitializeMap(int height, int width, string[] rows)
     {
         Height = height;
@@ -82,18 +82,18 @@ static class Map
             PossibleMovesByCount[i] = new HashSet<Position>();
         }
 
-        for (int y = 0; y < height; y++ )
+        for (int y = 0; y < height; y++)
         {
             PossibleMoveCount[y] = new int[width];
 
-            for(int x = 0; x < width; x++)
+            for (int x = 0; x < width; x++)
             {
                 var position = new Position(x, y);
 
                 if (IsWater(position))
                 {
                     var possibleMoveCount = Map.GetNeighborPositions(position)
-                        .Count( neighpos => IsWater(neighpos.Item1));
+                        .Count(neighpos => IsWater(neighpos.Item1));
 
                     PossibleMoveCount[y][x] = possibleMoveCount;
 
@@ -108,13 +108,13 @@ static class Map
     {
         var position = Position.None;
 
-        while(IsWater(position) == false)
+        while (IsWater(position) == false)
         {
             var random = new Random((int)System.Diagnostics.Stopwatch.GetTimestamp());
             var x = random.Next(0, Width - 1);
             var y = random.Next(0, Height - 1);
 
-            position = new Position(x,y);
+            position = new Position(x, y);
         }
 
         return position;
@@ -127,14 +127,14 @@ static class Map
         return IsWater(x, y);
     }
 
-    public static bool IsWater(int x,int y)
+    public static bool IsWater(int x, int y)
     {
         return (0 <= x && x < Width) &&
             (0 <= y && y < Height) &&
             Rows[y][x] == Water;
     }
 
-        
+
     public static bool IsIsland(Position coord)
     {
         var (x, y) = (coord.x, coord.y);
@@ -157,17 +157,17 @@ static class Map
     public static List<(Position, Direction)> GetNeighborPositions(Position fromPosition)
     {
         var neighborPositions = new List<(Position, Direction)>(4);
-        foreach(var direction in Player.AllDirections)
+        foreach (var direction in Player.AllDirections)
         {
             switch (direction)
             {
                 case Direction.E:
-                    if (fromPosition.x != Width - 1) 
+                    if (fromPosition.x != Width - 1)
                         neighborPositions.Add((new Position(fromPosition.x + 1, fromPosition.y), direction));
                     break;
 
                 case Direction.N:
-                    if (fromPosition.y != 0) 
+                    if (fromPosition.y != 0)
                         neighborPositions.Add((new Position(fromPosition.x, fromPosition.y - 1), direction));
                     break;
 
@@ -197,7 +197,7 @@ static class Map
     private static Position GetClosestWaterPosition(Position p, Func<Position, Position> nextPosition)
     {
         var currentPosition = p;
-        while(Map.IsWater(currentPosition) == false)
+        while (Map.IsWater(currentPosition) == false)
         {
             currentPosition = nextPosition(currentPosition);
         }
@@ -247,9 +247,9 @@ class StartingPositionComputer
         var bestPosition = Position.None;
         var bestFilledRegion = new HashSet<Position>();
 
-        foreach(var position in randomPositions)
+        foreach (var position in randomPositions)
         {
-            if(bestFilledRegion.Contains(position) == true)
+            if (bestFilledRegion.Contains(position) == true)
             {
                 //Do nothings
             }
@@ -259,7 +259,7 @@ class StartingPositionComputer
                 var fillEngine = new FloodFillEngine(noVisitedPositions);
                 var filledRegion = fillEngine.Run(position);
 
-                if(filledRegion.Count > bestFilledRegion.Count)
+                if (filledRegion.Count > bestFilledRegion.Count)
                 {
                     bestPosition = position;
                     bestFilledRegion = filledRegion;
@@ -295,7 +295,7 @@ class GameState
 
 public enum Direction { N, S, E, W }
 
-public enum Power { UNKNOWN, TORPEDO, SILENCE, SONAR, MINE}
+public enum Power { UNKNOWN, TORPEDO, SILENCE, SONAR, MINE }
 
 #region actions
 public abstract class Action
@@ -308,11 +308,11 @@ public abstract class Action
 
         var actions = new List<Action>();
 
-        foreach(var order in orders)
+        foreach (var order in orders)
         {
             var tokens = order.Split(' ');
             var cmd = tokens[0];
-            switch(cmd)
+            switch (cmd)
             {
                 case "MOVE":
                     Enum.TryParse<Direction>(tokens[1], out var direction);
@@ -389,7 +389,7 @@ public class SurfaceAction : Action
     }
 }
 
-public class TorpedoAction: Action
+public class TorpedoAction : Action
 {
     public static int Range = 4;
     public readonly Position TargetPosition;
@@ -420,7 +420,7 @@ public class SonarAction : Action
     }
 }
 
-public class SilenceAction :Action
+public class SilenceAction : Action
 {
     private readonly Direction? _direction;
     private int _moves;
@@ -475,9 +475,9 @@ public class TriggerAction : Action
 #endregion
 
 class AI
-{   
+{
     private readonly GameState _gameState;
- 
+
     public AI(GameState gameState)
     {
         _gameState = gameState;
@@ -487,11 +487,11 @@ class AI
     {
         var actions = new List<Action>();
 
-        var selectedMoveAction = SelectMoveAction();
-        actions.Add(selectedMoveAction);
-
         var selectedActions = SelectPowerActions();
         actions.AddRange(selectedActions);
+
+        var selectedMoveAction = SelectMoveAction();
+        actions.Add(selectedMoveAction);
 
         return actions;
     }
@@ -518,7 +518,7 @@ class AI
             powerActions.Add(MySubmarine.TriggerMine(minePosition));
         }
 
-        if(TryLaunchTorpedo(out var torpedoPosition))
+        if (TryLaunchTorpedo(out var torpedoPosition))
         {
             powerActions.Add(MySubmarine.LaunchTorpedo(torpedoPosition));
         }
@@ -530,7 +530,7 @@ class AI
     {
         torpedoPosition = Position.None;
 
-        if(_gameState.TorpedoAvailable == false)
+        if (_gameState.TorpedoAvailable == false)
         {
             return false;
         }
@@ -538,16 +538,16 @@ class AI
         var myPosition = MySubmarine.Position;
         var enemyPositionInRange = OpponentSubmarine.PossiblePositions
             .Where(p => p.DistanceTo(myPosition) <= 4 && p.DistanceTo(myPosition) > 1)
-            .OrderByDescending( p => p.DistanceTo(myPosition))
+            .OrderByDescending(p => p.DistanceTo(myPosition))
             .ToList();
-           
-        foreach(var position in enemyPositionInRange)
+
+        foreach (var position in enemyPositionInRange)
         {
             var blastedPosition = Player.EightDirectionDeltas
                 .Select(delta => new Position(delta.Item1, delta.Item2))
                 .ToHashSet();
 
-            if(blastedPosition.Contains(myPosition) == false)
+            if (blastedPosition.Contains(myPosition) == false)
             {
                 torpedoPosition = position;
                 break;
@@ -562,25 +562,25 @@ class AI
         direction = Direction.E;
         moves = 0;
 
-        if(_gameState.SilenceAvailable == false)
+        if (_gameState.SilenceAvailable == false)
         {
             return false;
         }
 
         var myPosition = MySubmarine.Position;
-        
+
         var possibleSilenceMoves = new HashSet<(Direction, int)>();
 
-        foreach(var kvp in Player.FourDirectionDeltas)
+        foreach (var kvp in Player.FourDirectionDeltas)
         {
             var d = kvp.Key;
             var delta = kvp.Value;
 
             var currentPosition = myPosition;
-            for(int step = 1; step <= 4; step++)
+            for (int step = 1; step <= 4; step++)
             {
                 currentPosition = currentPosition.Translate(delta.Item1, delta.Item2);
-                if(Map.IsWater(currentPosition) && MySubmarine.VisitedPositions.Contains(currentPosition) == false)
+                if (Map.IsWater(currentPosition) && MySubmarine.VisitedPositions.Contains(currentPosition) == false)
                 {
                     //ok
                     possibleSilenceMoves.Add((d, step));
@@ -592,7 +592,7 @@ class AI
             }
         }
 
-        if(possibleSilenceMoves.Count == 0)
+        if (possibleSilenceMoves.Count == 0)
         {
             return false;
         }
@@ -657,7 +657,7 @@ class AI
         return position != Position.None;
     }
 
-    private  bool TrySelectMinePosition(out Position position, out Direction direction )
+    private bool TrySelectMinePosition(out Position position, out Direction direction)
     {
         position = Position.None;
         direction = Direction.E;
@@ -666,20 +666,20 @@ class AI
         {
             return false;
         }
-        
+
         var myPosition = MySubmarine.Position;
         var neighborWaterPositions = Map.GetNeighborPositions(myPosition)
             .Where(x => Map.IsWater(x.Item1))
             .ToList();
 
         int maxCoverage = -1;
-        
+
         foreach (var item in neighborWaterPositions)
         {
             var possibleMinePosition = item.Item1;
             var possibleMineDirection = item.Item2;
 
-            if(MySubmarine.HasPlacedMineAt(possibleMinePosition) == false)
+            if (MySubmarine.HasPlacedMineAt(possibleMinePosition) == false)
             {
                 //Maximize area of blast
                 var newMines = MySubmarine.GetPlacedMines();
@@ -690,8 +690,8 @@ class AI
                 Player.Debug($"Mine at {possibleMineDirection.ToString()}, coverage = {coverage.ToString()}");
 
                 var coverageIsBetter = coverage > maxCoverage;
-                
-                if(coverageIsBetter)
+
+                if (coverageIsBetter)
                 {
                     maxCoverage = coverage;
                     position = possibleMinePosition;
@@ -700,19 +700,19 @@ class AI
             }
         }
 
-        return maxCoverage > 0 ;
+        return maxCoverage > 0;
     }
 
     private static int ComputeCoveredAreaByMines(HashSet<Position> minePositions)
     {
         var blastedPositions = new HashSet<Position>();
 
-        foreach(var mine in minePositions)
+        foreach (var mine in minePositions)
         {
-            foreach(var delta in Player.EightDirectionDeltas)
+            foreach (var delta in Player.EightDirectionDeltas)
             {
                 var blastedPosition = new Position(mine.x + delta.Item1, mine.y + delta.Item2);
-                if(Map.IsInMap(blastedPosition) && Map.IsWater(blastedPosition))
+                if (Map.IsInMap(blastedPosition) && Map.IsWater(blastedPosition))
                 {
                     blastedPositions.Add(blastedPosition);
                 }
@@ -804,7 +804,7 @@ class AI
         {
             return Power.SONAR;
         }
-        
+
         return Power.MINE;
     }
 
@@ -849,7 +849,7 @@ public class FloodFillEngine
         var q = new Queue<Position>();
         q.Enqueue(startPosition);
 
-        while(q.Count > 0)
+        while (q.Count > 0)
         {
             var currentPosition = q.Dequeue();
 
@@ -857,11 +857,11 @@ public class FloodFillEngine
                 .Where(x => Map.IsWater(x.Item1))
                 .ToList();
 
-            foreach(var neighbor in neighbors)
+            foreach (var neighbor in neighbors)
             {
-                if(_alreadyVisitedPositions.Contains(neighbor.Item1) == false)
+                if (_alreadyVisitedPositions.Contains(neighbor.Item1) == false)
                 {
-                    if(_remainingPositionsToVisit.Contains(neighbor.Item1) == false)
+                    if (_remainingPositionsToVisit.Contains(neighbor.Item1) == false)
                     {
                         _remainingPositionsToVisit.Add(neighbor.Item1);
                         q.Enqueue(neighbor.Item1);
@@ -894,7 +894,7 @@ public static class OpponentSubmarine
 
     public static void UpdateState(Action opponentAction)
     {
-        if(opponentAction is MoveAction)
+        if (opponentAction is MoveAction)
         {
             MoveAction moveAction = (MoveAction)opponentAction;
             var (dx, dy) = Player.FourDirectionDeltas[moveAction.Direction];
@@ -904,15 +904,15 @@ public static class OpponentSubmarine
             foreach (var currentPosition in currentPossiblePositions)
             {
                 var newPosition = currentPosition.Translate(dx, dy);
-                if(Map.IsInMap(newPosition) && Map.IsWater(newPosition))
+                if (Map.IsInMap(newPosition) && Map.IsWater(newPosition))
                     _possiblePositions.Add(newPosition);
             }
 
             //Remove impossible positions
             _possiblePositions = _possiblePositions
                 .Where(p => {
-                    var previousPosition = p.Translate(-dx,-dy);
-                    return Map.IsWater(previousPosition) && _possiblePositions.Contains(previousPosition); 
+                    var previousPosition = p.Translate(-dx, -dy);
+                    return Map.IsWater(previousPosition) && _possiblePositions.Contains(previousPosition);
                 })
                 .ToHashSet();
 
@@ -934,7 +934,7 @@ public static class OpponentSubmarine
             return;
         }
 
-        if(opponentAction is TorpedoAction)
+        if (opponentAction is TorpedoAction)
         {
             TorpedoAction torpedoAction = (TorpedoAction)opponentAction;
             _possiblePositions = _possiblePositions
@@ -943,10 +943,27 @@ public static class OpponentSubmarine
 
             return;
         }
-        
-        if(opponentAction is SilenceAction)
+
+        if (opponentAction is SilenceAction)
         {
-            ResetPossiblePositions();
+            var possiblePositions = PossiblePositions;
+            foreach (var position in possiblePositions)
+            {
+                foreach (var direction in Player.FourDirectionDeltas)
+                {
+                    for (int i = 1; i <= 4; i++)
+                    {
+                        var deltaX = direction.Value.Item1;
+                        var deltaY = direction.Value.Item2;
+
+                        var p = position.Translate(i * deltaX, i * deltaY);
+                        if (Map.IsWater(p))
+                        {
+                            _possiblePositions.Add(p);
+                        }
+                    }
+                }
+            }
             return;
         }
 
@@ -964,7 +981,7 @@ public static class OpponentSubmarine
             row.Append('|');
             for (int x = 0; x < Map.Width; x++)
             {
-                if(_possiblePositions.Contains(new Position(x,y)))
+                if (_possiblePositions.Contains(new Position(x, y)))
                 {
                     row.Append(' ');
                 }
@@ -996,7 +1013,7 @@ public static class OpponentSubmarine
 
                 var blastedPositions = Player.EightDirectionDeltas.Select(x => position.Translate(x.Item1, x.Item2));
 
-                foreach(var blastedPosition in blastedPositions)
+                foreach (var blastedPosition in blastedPositions)
                 {
                     _possiblePositions.Remove(blastedPosition);
                 }
@@ -1015,9 +1032,9 @@ public static class OpponentSubmarine
             else
             {
                 var blastedPositions = Player.EightDirectionDeltas.Select(x => position.Translate(x.Item1, x.Item2));
-                foreach(var blastedPosition in blastedPositions)
+                foreach (var blastedPosition in blastedPositions)
                 {
-                    if(Map.IsWater(blastedPosition))
+                    if (Map.IsWater(blastedPosition))
                         _possiblePositions.Add(blastedPosition);
                 }
             }
@@ -1040,6 +1057,8 @@ public static class OpponentSubmarine
         {
             OpponentSubmarine.UpdateState(action);
         }
+
+        _health = newHealth;
     }
 }
 
@@ -1126,13 +1145,13 @@ public static class MySubmarine
 
     public static MineAction PlaceMine((Position, Direction) place)
     {
-        MinePositions.Add(place.Item1); 
-        
+        MinePositions.Add(place.Item1);
+
         return new MineAction(place.Item2);
     }
 
     public static MoveAction MoveMySubmarine((Position, Direction) move, Power power)
-    {   
+    {
         var newPosition = move.Item1;
 
         MoveTo(newPosition);
@@ -1159,7 +1178,7 @@ public static class MySubmarine
     public static SilenceAction Silence(Direction direction, int moves)
     {
         var delta = Player.FourDirectionDeltas[direction];
-        for (int i=0; i< moves; i++)
+        for (int i = 0; i < moves; i++)
         {
             MoveTo(Position.Translate(delta.Item1, delta.Item2));
         }
@@ -1189,7 +1208,7 @@ class Player
 
     public static void Debug(string message)
     {
-        Console.Error.WriteLine(message);
+        //Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)
@@ -1202,7 +1221,7 @@ class Player
         List<string> rows = new List<string>(height);
         for (int i = 0; i < height; i++)
         {
-            rows.Add( Console.ReadLine());
+            rows.Add(Console.ReadLine());
         }
 
         Map.InitializeMap(height, width, rows.ToArray());
@@ -1247,7 +1266,7 @@ class Player
             OpponentSubmarine.Debug();
 
             MySubmarine.JustTriggeredWeapons.Clear();
-            
+
             var gameState = new GameState(torpedoCooldown, sonarCooldown, silenceCooldown, mineCooldown);
 
             var ai = new AI(gameState);
