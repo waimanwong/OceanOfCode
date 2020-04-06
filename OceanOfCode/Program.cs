@@ -103,6 +103,22 @@ static class Map
         }
     }
 
+    public static Position GetRandomWaterPosition()
+    {
+        var position = Position.None;
+
+        while(IsWater(position) == false)
+        {
+            var random = new Random((int)System.Diagnostics.Stopwatch.GetTimestamp());
+            var x = random.Next(0, Width - 1);
+            var y = random.Next(0, Height - 1);
+
+            position = new Position(x,y);
+        }
+
+        return position;
+    }
+
     public static bool IsWater(Position coord)
     {
         var (x, y) = (coord.x, coord.y);
@@ -226,14 +242,17 @@ class StartingPositionComputer
 {
     public Position EvaluateBestPosition()
     {
-        var corners = Map.GetWaterCorners();
+        var random = new Random();
 
-        var bestPosition = corners[0];
+        var randomPositions = Enumerable.Range(1, 10)
+            .Select(i => Map.GetRandomWaterPosition());
+
+        var bestPosition = Position.None;
         var bestFilledRegion = new HashSet<Position>();
 
-        foreach(var corner in corners)
+        foreach(var position in randomPositions)
         {
-            if(bestFilledRegion.Contains(corner) == true)
+            if(bestFilledRegion.Contains(position) == true)
             {
                 //Do nothings
             }
@@ -241,11 +260,11 @@ class StartingPositionComputer
             {
                 var noVisitedPositions = new HashSet<Position>();
                 var fillEngine = new FloodFillEngine(noVisitedPositions);
-                var filledRegion = fillEngine.Run(corner);
+                var filledRegion = fillEngine.Run(position);
 
                 if(filledRegion.Count > bestFilledRegion.Count)
                 {
-                    bestPosition = corner;
+                    bestPosition = position;
                     bestFilledRegion = filledRegion;
                 }
             }
@@ -494,14 +513,62 @@ class AI
 
     private List<Action> SelectPowerActions(HashSet<Position> visitedPositions)
     {
+        var myPosition = _gameState.MyPosition;
         var powerActions = new List<Action>();
 
+        //Place mine ?
         if (_gameState.MineAvailable)
         {
             if (TrySelectMinePosition(out var position, out var direction))
             {
                 powerActions.Add(PlaceMine((position, direction)));
             }
+        }
+
+        //Trigger mine ?
+        var placedMines = MySubmarine.GetPlacedMines();
+
+        if (placedMines.Count > 0)
+        {
+            var bestMineToTrigger = Position.None;
+            var enemyPossiblePositions = OpponentSubmarine.PossiblePositionCount;
+            var bestScore = int.MaxValue;
+
+            foreach(var minePosition in placedMines)
+            {
+                var blastedPositions = Player.EightDirectionDeltas
+                    .Select(delta => minePosition.Translate(delta.Item1, delta.Item2))
+                    .ToHashSet();
+                blastedPositions.Add(minePosition);
+
+                #region ignore if in the blast
+                if (blastedPositions.Contains(myPosition))
+                {
+                    continue;
+                }
+                #endregion
+
+                #region Evaluate score = remaining possible positions after blast
+                var remainingPositions = OpponentSubmarine.PossiblePositions;
+                foreach(var blastedPosition in blastedPositions)
+                {
+                    remainingPositions.Add(blastedPosition);
+                }
+                var remainingPositionCount = remainingPositions.Count;
+                #endregion
+                
+                if (remainingPositionCount < bestScore)
+                {
+                    bestScore = remainingPositionCount;
+                    bestMineToTrigger = minePosition;
+                }
+            }
+
+            if(bestMineToTrigger != Position.None)
+            {
+                powerActions.Add(TriggerMine(bestMineToTrigger));
+            }
+            
         }
 
         return powerActions;
@@ -627,10 +694,10 @@ class AI
     }
 
     private Power SelectPowerToCharge()
-    {
-        if (_gameState.TorpedoAvailable == false)
+    {       
+        if (_gameState.MineAvailable == false)
         {
-            return Power.TORPEDO;
+            return Power.MINE;
         }
 
         if (_gameState.SilenceAvailable == false)
@@ -638,9 +705,9 @@ class AI
             return Power.SILENCE;
         }
 
-        if (_gameState.MineAvailable == false)
+        if (_gameState.TorpedoAvailable == false)
         {
-            return Power.MINE;
+            return Power.TORPEDO;
         }
 
         if (_gameState.SonarAvailable == false)
@@ -754,9 +821,15 @@ public class FloodFillEngine
     }
 }
 
-public static class OpponentMap
+public static class OpponentSubmarine
 {
+    private static int _health = 6;
+
     private static HashSet<Position> _possiblePositions = new HashSet<Position>();
+
+    public static HashSet<Position> PossiblePositions => _possiblePositions.ToHashSet();
+
+    public static int PossiblePositionCount => _possiblePositions.Count;
 
     public static void ResetPossiblePositions()
     {
@@ -765,11 +838,11 @@ public static class OpponentMap
             .ToHashSet();
     }
 
-    public static void EvaluateNewPossiblePositions(Action action)
+    public static void EvaluateNewPossiblePositions(Action opponentAction)
     {
-        if(action is MoveAction)
+        if(opponentAction is MoveAction)
         {
-            MoveAction moveAction = (MoveAction)action;
+            MoveAction moveAction = (MoveAction)opponentAction;
             var (dx, dy) = Player.FourDirectionDeltas[moveAction.Direction];
 
             //Add possible positions
@@ -789,31 +862,31 @@ public static class OpponentMap
                 })
                 .ToHashSet();
         }
-        else if (action is SurfaceAction)
+        else if (opponentAction is SurfaceAction)
         {
             ResetPossiblePositions();
 
-            SurfaceAction surfaceAction = (SurfaceAction)action;
+            SurfaceAction surfaceAction = (SurfaceAction)opponentAction;
             var (topLeftPosition, bottomRigthPosition) = Map.GetSectorBounds(surfaceAction.sector);
             _possiblePositions = _possiblePositions
                 .Where(p => (topLeftPosition.x <= p.x && p.x <= bottomRigthPosition.x) &&
                            (topLeftPosition.y <= p.y && p.y <= bottomRigthPosition.y))
                 .ToHashSet();
         }
-        else if(action is TorpedoAction)
+        else if(opponentAction is TorpedoAction)
         {
-            TorpedoAction torpedoAction = (TorpedoAction)action;
+            TorpedoAction torpedoAction = (TorpedoAction)opponentAction;
             _possiblePositions = _possiblePositions
                 .Where(p => p.DistanceTo(torpedoAction.TargetPosition) <= 4)
                 .ToHashSet();
         }
-        else if(action is SilenceAction)
+        else if(opponentAction is SilenceAction)
         {
             ResetPossiblePositions();
         }
         else
         {
-            Player.Debug($"ignore opponent: {action.GetType().ToString()}");
+            Player.Debug($"ignore opponent: {opponentAction.GetType().ToString()}");
         }
     }
 
@@ -950,7 +1023,7 @@ class Player
 
     public static void Debug(string message)
     {
-        Console.Error.WriteLine(message);
+        //Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)
@@ -975,7 +1048,7 @@ class Player
             .EvaluateBestPosition();
         Console.WriteLine(initialPosition.ToString());
 
-        OpponentMap.ResetPossiblePositions();
+        OpponentSubmarine.ResetPossiblePositions();
 
         // game loop
         while (true)
@@ -994,10 +1067,10 @@ class Player
             opponentOrders.Reverse();
             foreach (var action in opponentOrders)
             {
-                OpponentMap.EvaluateNewPossiblePositions(action);
+                OpponentSubmarine.EvaluateNewPossiblePositions(action);
             }
             
-            OpponentMap.Debug();
+            OpponentSubmarine.Debug();
 
             inputs = line.Split(' ');
             int x = int.Parse(inputs[0]);
