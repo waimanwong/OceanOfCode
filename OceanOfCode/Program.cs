@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 /**
  * Auto-generated code below aims at helping you parse
@@ -138,7 +139,14 @@ static class Map
     {
         var (x, y) = (coord.x, coord.y);
 
-        return Rows[y][x] == Island;
+        return IsIsland(x, y);
+    }
+
+    public static bool IsIsland(int x, int y)
+    {
+        return (0 <= x && x < Width) &&
+            (0 <= y && y < Height) &&
+            Rows[y][x] == Island;
     }
 
     /// <summary>
@@ -265,20 +273,13 @@ class StartingPositionComputer
 
 class GameState
 {
-    public Position MyPosition;
-    public readonly List<Action> OpponentActions;
-
     private readonly int _torpedoCooldown;
     private readonly int _sonarCooldown;
     private readonly int _silenceCooldown;
     private readonly int _mineCooldown;
 
-    public GameState(Position myPosition, List<Action> opponentActions, 
-        int torpedoCooldown, int sonarCooldown, int silenceCooldown, int mineCooldown)
+    public GameState(int torpedoCooldown, int sonarCooldown, int silenceCooldown, int mineCooldown)
     {
-        MyPosition = myPosition;
-        OpponentActions = opponentActions;
-
         _torpedoCooldown = torpedoCooldown;
         _sonarCooldown = sonarCooldown;
         _silenceCooldown = silenceCooldown;
@@ -289,11 +290,6 @@ class GameState
     public bool SonarAvailable => _sonarCooldown == 0;
     public bool SilenceAvailable => _silenceCooldown == 0;
     public bool MineAvailable => _mineCooldown == 0;
-
-    public void MoveMySubmarine(Position newPosition)
-    {
-        MyPosition = newPosition;
-    }
 
 }
 
@@ -359,7 +355,7 @@ public abstract class Action
     }
 }
 
-class MoveAction : Action
+public class MoveAction : Action
 {
     public readonly Direction Direction;
     private Power _power;
@@ -376,7 +372,7 @@ class MoveAction : Action
     }
 }
 
-class SurfaceAction : Action
+public class SurfaceAction : Action
 {
     public readonly int sector;
 
@@ -393,7 +389,7 @@ class SurfaceAction : Action
     }
 }
 
-class TorpedoAction: Action
+public class TorpedoAction: Action
 {
     public static int Range = 4;
     public readonly Position TargetPosition;
@@ -409,7 +405,7 @@ class TorpedoAction: Action
     }
 }
 
-class SonarAction : Action
+public class SonarAction : Action
 {
     private readonly int _sector;
 
@@ -424,7 +420,7 @@ class SonarAction : Action
     }
 }
 
-class SilenceAction :Action
+public class SilenceAction :Action
 {
     private readonly Direction? _direction;
     private int _moves;
@@ -446,7 +442,7 @@ class SilenceAction :Action
     }
 }
 
-class MineAction : Action
+public class MineAction : Action
 {
     private readonly Direction _direction;
 
@@ -461,7 +457,7 @@ class MineAction : Action
     }
 }
 
-class TriggerAction: Action
+public class TriggerAction : Action
 {
     private Position _position;
 
@@ -491,89 +487,193 @@ class AI
     {
         var actions = new List<Action>();
 
-        var selectedMoveAction = SelectMoveAction(MySubmarine.VisitedPositions);
+        var selectedMoveAction = SelectMoveAction();
         actions.Add(selectedMoveAction);
 
-        var selectedActions = SelectPowerActions(MySubmarine.VisitedPositions);
+        var selectedActions = SelectPowerActions();
         actions.AddRange(selectedActions);
 
         return actions;
     }
 
-    private List<Action> SelectPowerActions(HashSet<Position> visitedPositions)
+    private List<Action> SelectPowerActions()
     {
-        var myPosition = _gameState.MyPosition;
         var powerActions = new List<Action>();
 
-        //Place mine ?
-        if (_gameState.MineAvailable)
+        //Silence ?
+        if (TrySilence(out var silenceDirection, out var moves))
         {
-            if (TrySelectMinePosition(out var position, out var direction))
-            {
-                powerActions.Add(PlaceMine((position, direction)));
-            }
+            powerActions.Add(MySubmarine.Silence(silenceDirection, moves));
+        }
+
+        //Place mine ?
+        if (TrySelectMinePosition(out var position, out var mineDirection))
+        {
+            powerActions.Add(MySubmarine.PlaceMine((position, mineDirection)));
         }
 
         //Trigger mine ?
-        var placedMines = MySubmarine.GetPlacedMines();
-
-        if (placedMines.Count > 0)
+        if (TryTriggerMine(out var minePosition))
         {
-            var bestMineToTrigger = Position.None;
-            var enemyPossiblePositions = OpponentSubmarine.PossiblePositionCount;
-            var bestScore = int.MaxValue;
+            powerActions.Add(MySubmarine.TriggerMine(minePosition));
+        }
 
-            foreach(var minePosition in placedMines)
-            {
-                var blastedPositions = Player.EightDirectionDeltas
-                    .Select(delta => minePosition.Translate(delta.Item1, delta.Item2))
-                    .ToHashSet();
-                blastedPositions.Add(minePosition);
-
-                #region ignore if in the blast
-                if (blastedPositions.Contains(myPosition))
-                {
-                    continue;
-                }
-                #endregion
-
-                #region Evaluate score = remaining possible positions after blast
-                var remainingPositions = OpponentSubmarine.PossiblePositions;
-                foreach(var blastedPosition in blastedPositions)
-                {
-                    remainingPositions.Add(blastedPosition);
-                }
-                var remainingPositionCount = remainingPositions.Count;
-                #endregion
-                
-                if (remainingPositionCount < bestScore)
-                {
-                    bestScore = remainingPositionCount;
-                    bestMineToTrigger = minePosition;
-                }
-            }
-
-            if(bestMineToTrigger != Position.None)
-            {
-                powerActions.Add(TriggerMine(bestMineToTrigger));
-            }
-            
+        if(TryLaunchTorpedo(out var torpedoPosition))
+        {
+            powerActions.Add(MySubmarine.LaunchTorpedo(torpedoPosition));
         }
 
         return powerActions;
     }
 
+    private bool TryLaunchTorpedo(out Position torpedoPosition)
+    {
+        torpedoPosition = Position.None;
+
+        if(_gameState.TorpedoAvailable == false)
+        {
+            return false;
+        }
+
+        var myPosition = MySubmarine.Position;
+        var enemyPositionInRange = OpponentSubmarine.PossiblePositions
+            .Where(p => p.DistanceTo(myPosition) <= 4 && p.DistanceTo(myPosition) > 1)
+            .OrderByDescending( p => p.DistanceTo(myPosition))
+            .ToList();
+           
+        foreach(var position in enemyPositionInRange)
+        {
+            var blastedPosition = Player.EightDirectionDeltas
+                .Select(delta => new Position(delta.Item1, delta.Item2))
+                .ToHashSet();
+
+            if(blastedPosition.Contains(myPosition) == false)
+            {
+                torpedoPosition = position;
+                break;
+            }
+        }
+
+        return torpedoPosition != Position.None;
+    }
+
+    private bool TrySilence(out Direction direction, out int moves)
+    {
+        direction = Direction.E;
+        moves = 0;
+
+        if(_gameState.SilenceAvailable == false)
+        {
+            return false;
+        }
+
+        var myPosition = MySubmarine.Position;
+        
+        var possibleSilenceMoves = new HashSet<(Direction, int)>();
+
+        foreach(var kvp in Player.FourDirectionDeltas)
+        {
+            var d = kvp.Key;
+            var delta = kvp.Value;
+
+            var currentPosition = myPosition;
+            for(int step = 1; step <= 4; step++)
+            {
+                currentPosition = currentPosition.Translate(delta.Item1, delta.Item2);
+                if(Map.IsWater(currentPosition) && MySubmarine.VisitedPositions.Contains(currentPosition) == false)
+                {
+                    //ok
+                    possibleSilenceMoves.Add((d, step));
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+
+        if(possibleSilenceMoves.Count == 0)
+        {
+            return false;
+        }
+
+        var random = new Random((int)Stopwatch.GetTimestamp());
+        var selectedIndex = random.Next(0, possibleSilenceMoves.Count - 1);
+
+        var selectedMove = possibleSilenceMoves.ElementAt(selectedIndex);
+        direction = selectedMove.Item1;
+        moves = selectedMove.Item2;
+        return true;
+    }
+
+    public bool TryTriggerMine(out Position position)
+    {
+        position = Position.None;
+
+        var placedMines = MySubmarine.GetPlacedMines();
+
+        if (placedMines.Count == 0)
+        {
+            return false;
+        }
+
+        var myPosition = MySubmarine.Position;
+        var bestMineToTrigger = Position.None;
+        var enemyPossiblePositions = OpponentSubmarine.PossiblePositionCount;
+        var bestScore = int.MaxValue;
+
+        foreach (var minePosition in placedMines)
+        {
+            var blastedPositions = Player.EightDirectionDeltas
+                .Select(delta => minePosition.Translate(delta.Item1, delta.Item2))
+                .ToHashSet();
+            blastedPositions.Add(minePosition);
+
+            #region ignore if in the blast
+            if (blastedPositions.Contains(myPosition))
+            {
+                continue;
+            }
+            #endregion
+
+            #region Evaluate score = remaining possible positions after blast
+            var remainingPositions = OpponentSubmarine.PossiblePositions;
+            foreach (var blastedPosition in blastedPositions)
+            {
+                remainingPositions.Add(blastedPosition);
+            }
+            var remainingPositionCount = remainingPositions.Count;
+            #endregion
+
+            if (remainingPositionCount < bestScore)
+            {
+                bestScore = remainingPositionCount;
+                bestMineToTrigger = minePosition;
+            }
+        }
+
+        position = bestMineToTrigger;
+
+        return position != Position.None;
+    }
+
     private  bool TrySelectMinePosition(out Position position, out Direction direction )
     {
-        var myPosition = _gameState.MyPosition;
+        position = Position.None;
+        direction = Direction.E;
+
+        if (_gameState.MineAvailable == false)
+        {
+            return false;
+        }
+        
+        var myPosition = MySubmarine.Position;
         var neighborWaterPositions = Map.GetNeighborPositions(myPosition)
             .Where(x => Map.IsWater(x.Item1))
             .ToList();
 
         int maxCoverage = -1;
-        position = Position.None;
-        direction = Direction.E;
-
+        
         foreach (var item in neighborWaterPositions)
         {
             var possibleMinePosition = item.Item1;
@@ -622,26 +722,27 @@ class AI
         return blastedPositions.Count;
     }
 
-    private Action SelectMoveAction(HashSet<Position> visitedPositions)
+    private Action SelectMoveAction()
     {
-        var fromPosition = _gameState.MyPosition;
-        var possibleMoves = GetPossibleDirectionsForMove(visitedPositions, fromPosition);
+        var fromPosition = MySubmarine.Position;
+        var possibleMoves = GetPossibleDirectionsForMove(fromPosition);
         var possibleMoveCount = possibleMoves.Count;
 
         if (possibleMoveCount == 0)
         {
-            return SurfaceMySubmarine();
+            return MySubmarine.SurfaceMySubmarine();
         }
 
         if (possibleMoveCount == 1)
         {
             var possibleMove = possibleMoves.Single();
-            return MoveMySubmarine(possibleMove, SelectPowerToCharge());
+            return MySubmarine.MoveMySubmarine(possibleMove, SelectPowerToCharge());
         }
 
         var bestMove = possibleMoves.First();
         var bestScore = 0;
         var bestFilledRegion = new HashSet<Position>();
+        var visitedPositions = MySubmarine.VisitedPositions;
 
         foreach (var possibleMove in possibleMoves)
         {
@@ -679,14 +780,14 @@ class AI
             }
         }
 
-        return MoveMySubmarine(bestMove, SelectPowerToCharge());
+        return MySubmarine.MoveMySubmarine(bestMove, SelectPowerToCharge());
     }
 
     private Power SelectPowerToCharge()
-    {       
-        if (_gameState.MineAvailable == false)
+    {
+        if (_gameState.TorpedoAvailable == false)
         {
-            return Power.MINE;
+            return Power.TORPEDO;
         }
 
         if (_gameState.SilenceAvailable == false)
@@ -694,9 +795,9 @@ class AI
             return Power.SILENCE;
         }
 
-        if (_gameState.TorpedoAvailable == false)
+        if (_gameState.MineAvailable == false)
         {
-            return Power.TORPEDO;
+            return Power.MINE;
         }
 
         if (_gameState.SonarAvailable == false)
@@ -707,8 +808,10 @@ class AI
         return Power.MINE;
     }
 
-    private List<(Position, Direction)> GetPossibleDirectionsForMove(HashSet<Position> visitedPositions, Position myPosition)
+    private List<(Position, Direction)> GetPossibleDirectionsForMove(Position myPosition)
     {
+        var visitedPositions = MySubmarine.VisitedPositions;
+
         var possibleDirections = new List<Direction>();
         var waterNeighborPositions = Map.GetNeighborPositions(myPosition)
             .Where(x => Map.IsWater(x.Item1))
@@ -717,44 +820,6 @@ class AI
         return waterNeighborPositions.ToList();
     }
 
-    private TorpedoAction LaunchTorpedo(Position position)
-    {
-        return new TorpedoAction(position);
-    }
-
-    private MineAction PlaceMine((Position, Direction ) place)
-    {
-        MySubmarine.PlaceMine(place.Item1);
-        return new MineAction(place.Item2);
-    }
-
-    private MoveAction MoveMySubmarine((Position, Direction) move, Power power)
-    {
-        var newPosition = move.Item1;
-
-        _gameState.MoveMySubmarine(newPosition);
-
-        MySubmarine.Visit(newPosition);
-
-        return new MoveAction(move.Item2, power);
-    }
-    
-    private SurfaceAction SurfaceMySubmarine()
-    {
-        MySubmarine.ResetVisitedPositions();
-
-        return new SurfaceAction();
-    }
-
-    private TriggerAction TriggerMine(Position p)
-    {
-        return new TriggerAction(p);
-    }
-
-    //private SilenceAction Silence(Direction direction, int moves)
-    //{
-    //    return new SilenceAction(direction, 1);
-    //}
 }
 
 public class FloodFillEngine
@@ -827,7 +892,7 @@ public static class OpponentSubmarine
             .ToHashSet();
     }
 
-    public static void EvaluateNewPossiblePositions(Action opponentAction)
+    public static void UpdateState(Action opponentAction)
     {
         if(opponentAction is MoveAction)
         {
@@ -850,33 +915,42 @@ public static class OpponentSubmarine
                     return Map.IsWater(previousPosition) && _possiblePositions.Contains(previousPosition); 
                 })
                 .ToHashSet();
+
+            return;
         }
-        else if (opponentAction is SurfaceAction)
+
+        if (opponentAction is SurfaceAction)
         {
             ResetPossiblePositions();
 
             SurfaceAction surfaceAction = (SurfaceAction)opponentAction;
+
             var (topLeftPosition, bottomRigthPosition) = Map.GetSectorBounds(surfaceAction.sector);
             _possiblePositions = _possiblePositions
                 .Where(p => (topLeftPosition.x <= p.x && p.x <= bottomRigthPosition.x) &&
                            (topLeftPosition.y <= p.y && p.y <= bottomRigthPosition.y))
                 .ToHashSet();
+
+            return;
         }
-        else if(opponentAction is TorpedoAction)
+
+        if(opponentAction is TorpedoAction)
         {
             TorpedoAction torpedoAction = (TorpedoAction)opponentAction;
             _possiblePositions = _possiblePositions
                 .Where(p => p.DistanceTo(torpedoAction.TargetPosition) <= 4)
                 .ToHashSet();
+
+            return;
         }
-        else if(opponentAction is SilenceAction)
+        
+        if(opponentAction is SilenceAction)
         {
             ResetPossiblePositions();
+            return;
         }
-        else
-        {
-            Player.Debug($"ignore opponent: {opponentAction.GetType().ToString()}");
-        }
+
+        return;
     }
 
     public static void Debug()
@@ -896,7 +970,14 @@ public static class OpponentSubmarine
                 }
                 else
                 {
-                    row.Append('X');
+                    if (Map.IsIsland(x, y))
+                    {
+                        row.Append('.');
+                    }
+                    else
+                    {
+                        row.Append('X');
+                    }
                 }
             }
             row.Append('|');
@@ -905,36 +986,75 @@ public static class OpponentSubmarine
         Player.Debug("---------------------------");
     }
 
-    public static bool TryGuessEnemyPosition(out Position guessedEnenmyPosition)
+    public static void UpdateStateCausedByMyWeapons(int lostHealthCausedByWeapon)
     {
-        guessedEnenmyPosition = Position.None;
-
-        foreach(var position in _possiblePositions)
+        if (lostHealthCausedByWeapon == 0)
         {
-            var neighbors = Player.FourDirectionDeltas.Values
-                .Select(delta => position.Translate(delta.Item1, delta.Item2))
-                .Where(p => Map.IsInMap(p) && Map.IsWater(p));
-
-            var possibleNeighborCount = neighbors.Count(p => _possiblePositions.Contains(p));
-
-            if(possibleNeighborCount <= 2)
+            foreach (var position in MySubmarine.JustTriggeredWeapons)
             {
-                guessedEnenmyPosition = position;
+                _possiblePositions.Remove(position);
+
+                var blastedPositions = Player.EightDirectionDeltas.Select(x => position.Translate(x.Item1, x.Item2));
+
+                foreach(var blastedPosition in blastedPositions)
+                {
+                    _possiblePositions.Remove(blastedPosition);
+                }
             }
+
+            return;
         }
 
-        return guessedEnenmyPosition != Position.None;
+        _possiblePositions.Clear();
+        foreach (var position in MySubmarine.JustTriggeredWeapons)
+        {
+            if (lostHealthCausedByWeapon == 2)
+            {
+                _possiblePositions.Add(position);
+            }
+            else
+            {
+                var blastedPositions = Player.EightDirectionDeltas.Select(x => position.Translate(x.Item1, x.Item2));
+                foreach(var blastedPosition in blastedPositions)
+                {
+                    if(Map.IsWater(blastedPosition))
+                        _possiblePositions.Add(blastedPosition);
+                }
+            }
+        }
+    }
+
+    public static void Apply(int newHealth, string txtOpponentOrders)
+    {
+        var opponentOrders = Action.Parse(txtOpponentOrders);
+        var lostHealthCausedByWeapon = _health - newHealth;
+
+        if (opponentOrders.OfType<SurfaceAction>().Any())
+        {
+            lostHealthCausedByWeapon = lostHealthCausedByWeapon - 1;
+        }
+
+        OpponentSubmarine.UpdateStateCausedByMyWeapons(lostHealthCausedByWeapon);
+
+        foreach (var action in opponentOrders)
+        {
+            OpponentSubmarine.UpdateState(action);
+        }
     }
 }
 
 public static class MySubmarine
 {
+    public static Position Position;
+
     private static readonly HashSet<Position> _visitedPositions = new HashSet<Position>();
 
     public static readonly HashSet<Position> MinePositions = new HashSet<Position>();
 
-    public static void Visit(Position position)
+    private static void MoveTo(Position position)
     {
+        Position = position;
+
         _visitedPositions.Add(position);
     }
 
@@ -948,16 +1068,6 @@ public static class MySubmarine
     public static bool HasPlacedMineAt(Position position)
     {
         return MinePositions.Contains(position);
-    }
-
-    public static void PlaceMine(Position position)
-    {
-        MinePositions.Add(position);
-    }
-
-    public static void TriggerMine(Position position)
-    {
-        MinePositions.Remove(position);
     }
 
     public static HashSet<Position> GetPlacedMines()
@@ -976,13 +1086,27 @@ public static class MySubmarine
             row.Append('|');
             for (int x = 0; x < Map.Width; x++)
             {
-                if (_visitedPositions.Contains(new Position(x, y)))
+                if (Position.x == x && Position.y == y)
                 {
-                    row.Append('X');
+                    row.Append('M');
                 }
                 else
                 {
-                    row.Append(' ');
+                    if (_visitedPositions.Contains(new Position(x, y)))
+                    {
+                        row.Append('X');
+                    }
+                    else
+                    {
+                        if (Map.IsIsland(x, y))
+                        {
+                            row.Append('.');
+                        }
+                        else
+                        {
+                            row.Append(' ');
+                        }
+                    }
                 }
             }
             row.Append('|');
@@ -990,6 +1114,59 @@ public static class MySubmarine
         }
         Player.Debug("---------------------------");
     }
+
+    public static List<Position> JustTriggeredWeapons = new List<Position>();
+
+    public static TorpedoAction LaunchTorpedo(Position position)
+    {
+        JustTriggeredWeapons.Add(position);
+
+        return new TorpedoAction(position);
+    }
+
+    public static MineAction PlaceMine((Position, Direction) place)
+    {
+        MinePositions.Add(place.Item1); 
+        
+        return new MineAction(place.Item2);
+    }
+
+    public static MoveAction MoveMySubmarine((Position, Direction) move, Power power)
+    {   
+        var newPosition = move.Item1;
+
+        MoveTo(newPosition);
+
+        return new MoveAction(move.Item2, power);
+    }
+
+    public static SurfaceAction SurfaceMySubmarine()
+    {
+        ResetVisitedPositions();
+
+        return new SurfaceAction();
+    }
+
+    public static TriggerAction TriggerMine(Position p)
+    {
+        MinePositions.Remove(p);
+
+        JustTriggeredWeapons.Add(p);
+
+        return new TriggerAction(p);
+    }
+
+    public static SilenceAction Silence(Direction direction, int moves)
+    {
+        var delta = Player.FourDirectionDeltas[direction];
+        for (int i=0; i< moves; i++)
+        {
+            MoveTo(Position.Translate(delta.Item1, delta.Item2));
+        }
+
+        return new SilenceAction(direction, moves);
+    }
+
 }
 
 class Player
@@ -1012,7 +1189,7 @@ class Player
 
     public static void Debug(string message)
     {
-        //Console.Error.WriteLine(message);
+        Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)
@@ -1037,6 +1214,7 @@ class Player
             .EvaluateBestPosition();
         Console.WriteLine(initialPosition.ToString());
 
+        MySubmarine.MoveMySubmarine((initialPosition, Direction.E), Power.MINE);
         OpponentSubmarine.ResetPossiblePositions();
 
         // game loop
@@ -1052,22 +1230,11 @@ class Player
             //Debug($"Sonar Rsult: {sonarLine}");
             //Debug($"txtOpponentOrders: {txtOpponentOrders}");
 
-            var opponentOrders = Action.Parse(txtOpponentOrders);
-            opponentOrders.Reverse();
-            foreach (var action in opponentOrders)
-            {
-                OpponentSubmarine.EvaluateNewPossiblePositions(action);
-            }
-            
-            OpponentSubmarine.Debug();
-
             inputs = line.Split(' ');
             int x = int.Parse(inputs[0]);
             int y = int.Parse(inputs[1]);
 
             var myPosition = new Position(x, y);
-
-            MySubmarine.Visit(myPosition);
 
             int myLife = int.Parse(inputs[2]);
             int oppLife = int.Parse(inputs[3]);
@@ -1076,12 +1243,13 @@ class Player
             int silenceCooldown = int.Parse(inputs[6]);
             int mineCooldown = int.Parse(inputs[7]);
 
-            // Write an action using Console.WriteLine()
-            // To debug: Console.Error.WriteLine("Debug messages...");
+            OpponentSubmarine.Apply(oppLife, txtOpponentOrders);
+            OpponentSubmarine.Debug();
 
-            var gameState = new GameState(
-                myPosition, opponentOrders,
-                torpedoCooldown, sonarCooldown, silenceCooldown, mineCooldown);
+            MySubmarine.JustTriggeredWeapons.Clear();
+            
+            var gameState = new GameState(torpedoCooldown, sonarCooldown, silenceCooldown, mineCooldown);
+
             var ai = new AI(gameState);
 
             var actions = ai.ComputeActions();
