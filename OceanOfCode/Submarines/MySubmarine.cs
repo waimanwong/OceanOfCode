@@ -5,11 +5,11 @@ public static class MySubmarine
 {
     public static Position Position;
 
-    private static TrackingService _trackingService = new TrackingService(Map.WaterPositions);
+    public readonly static TrackingService TrackingService = new TrackingService(Map.WaterPositions);
 
     private static readonly HashSet<Position> _visitedPositions = new HashSet<Position>();
 
-    public static readonly HashSet<Position> MinePositions = new HashSet<Position>();
+    private static readonly HashSet<Position> MinePositions = new HashSet<Position>();
 
     private static void MoveTo(Position position)
     {
@@ -22,7 +22,7 @@ public static class MySubmarine
     {
         Player.Debug("*********************************************");
         Player.Debug("MySubmarine data");
-        _trackingService.Debug();
+        TrackingService.Debug();
         Player.Debug("*********************************************");
     }
 
@@ -35,25 +35,25 @@ public static class MySubmarine
     {
         if (action is MoveAction)
         {
-            _trackingService.Track((MoveAction)action);
+            TrackingService.Track((MoveAction)action);
             return;
         }
 
         if (action is SurfaceAction)
         {
-            _trackingService.Track((SurfaceAction)action);
+            TrackingService.Track((SurfaceAction)action);
             return;
         }
 
         if (action is TorpedoAction)
         {
-            _trackingService.Track((TorpedoAction)action);
+            TrackingService.Track((TorpedoAction)action);
             return;
         }
 
         if (action is SilenceAction)
         {
-            _trackingService.Track((SilenceAction)action);
+            TrackingService.Track((SilenceAction)action);
             return;
         }
 
@@ -105,7 +105,7 @@ public static class MySubmarine
     public static SurfaceAction SurfaceMySubmarine()
     {
         ResetVisitedPositions();
-
+        MoveTo(Position);
         return new SurfaceAction();
     }
 

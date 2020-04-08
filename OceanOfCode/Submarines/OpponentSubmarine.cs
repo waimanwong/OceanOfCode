@@ -10,6 +10,10 @@ public static class OpponentSubmarine
 
     public static void UpdateState(int newHealth, string txtOpponentOrders, List<Action> myActions)
     {
+        //Play first my actions
+        _trackingService.Track(newHealth, myActions);
+
+        //Then opponent actions
         var opponentOrders = Action.Parse(txtOpponentOrders);
        
         foreach (var action in opponentOrders)
@@ -17,7 +21,7 @@ public static class OpponentSubmarine
             OpponentSubmarine.ApplyAction(action);
         }
 
-        _trackingService.Track(newHealth, myActions);
+        
     }
 
     public static void Debug()

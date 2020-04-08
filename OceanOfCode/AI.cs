@@ -19,8 +19,11 @@ class AI
         var selectedActions = SelectPowerActions();
         actions.AddRange(selectedActions);
 
-        var selectedMoveAction = SelectMoveAction();
-        actions.Add(selectedMoveAction);
+        if(selectedActions.OfType<SilenceAction>().Any() == false)
+        {
+            var selectedMoveAction = SelectMoveAction();
+            actions.Add(selectedMoveAction);
+        }
 
         return actions;
     }
@@ -47,11 +50,12 @@ class AI
             powerActions.Add(MySubmarine.TriggerMine(minePosition));
         }
 
-        //if (TryLaunchTorpedo(out var torpedoPosition))
-        //{
-        //    powerActions.Add(MySubmarine.LaunchTorpedo(torpedoPosition));
-        //}
-
+        ////Trigger torpedo ?
+        if(TryLaunchTorpedo(out var torpedoPosition))
+        {
+            powerActions.Add(MySubmarine.LaunchTorpedo(torpedoPosition));
+        }
+                
         return powerActions;
     }
 
@@ -59,31 +63,55 @@ class AI
     {
         torpedoPosition = Position.None;
 
-        if (_gameState.TorpedoAvailable == false)
+        return torpedoPosition != Position.None;
+    }
+
+    private bool TryTriggerMine(out Position bestMinePosition)
+    { 
+        bestMinePosition = Position.None;
+
+        var enemyPositions = OpponentSubmarine.PossiblePositions;
+
+        if (enemyPositions.Count > 10)
         {
             return false;
         }
 
-        var myPosition = MySubmarine.Position;
-        var enemyPositionInRange = OpponentSubmarine.PossiblePositions
-            .Where(p => p.DistanceTo(myPosition) <= 4 && p.DistanceTo(myPosition) > 1)
-            .OrderByDescending(p => p.DistanceTo(myPosition))
-            .ToList();
+        //Select the mine which blast the maximum opponent positions
+        var minePositions = MySubmarine.GetPlacedMines();
+        var blastedOpponentPositions = 0;
 
-        foreach (var position in enemyPositionInRange)
+        foreach(var minePosition in minePositions)
         {
-            var blastedPosition = Player.EightDirectionDeltas
-                .Select(delta => new Position(delta.Item1, delta.Item2))
-                .ToHashSet();
+            var blastedPositions = GetBlastedPositions(minePosition);
 
-            if (blastedPosition.Contains(myPosition) == false)
+            if (blastedPositions.Contains(MySubmarine.Position) == false)
             {
-                torpedoPosition = position;
-                break;
+                var count = enemyPositions.Count(p => blastedPositions.Contains(p));
+
+                if (count > blastedOpponentPositions)
+                {
+                    blastedOpponentPositions = count;
+                    bestMinePosition = minePosition;
+                }
             }
         }
 
-        return torpedoPosition != Position.None;
+        return bestMinePosition != Position.None;
+    }
+
+    private HashSet<Position> GetBlastedPositions(Position weaponPosition)
+    {
+        var blastedPositions = new List<Position>();
+
+        blastedPositions.Add(weaponPosition);
+
+        blastedPositions.AddRange( Player.EightDirectionDeltas
+            .Select(delta => new Position(weaponPosition.x + delta.Item1, weaponPosition.y + delta.Item2))
+            .Where(p => Map.IsWater(p))
+            .ToList());
+
+        return blastedPositions.ToHashSet();
     }
 
     private bool TrySilence(out Direction direction, out int moves)
@@ -135,57 +163,6 @@ class AI
         return true;
     }
 
-    public bool TryTriggerMine(out Position position)
-    {
-        position = Position.None;
-
-        var placedMines = MySubmarine.GetPlacedMines();
-
-        if (placedMines.Count == 0)
-        {
-            return false;
-        }
-
-        var myPosition = MySubmarine.Position;
-        var bestMineToTrigger = Position.None;
-        var enemyPossiblePositions = OpponentSubmarine.PossiblePositions;
-        var bestScore = int.MaxValue;
-
-        foreach (var minePosition in placedMines)
-        {
-            var blastedPositions = Player.EightDirectionDeltas
-                .Select(delta => minePosition.Translate(delta.Item1, delta.Item2))
-                .ToHashSet();
-            blastedPositions.Add(minePosition);
-
-            #region ignore if in the blast
-            if (blastedPositions.Contains(myPosition))
-            {
-                continue;
-            }
-            #endregion
-
-            #region Evaluate score = remaining possible positions after blast
-            var remainingPositions = OpponentSubmarine.PossiblePositions;
-            foreach (var blastedPosition in blastedPositions)
-            {
-                remainingPositions.Add(blastedPosition);
-            }
-            var remainingPositionCount = remainingPositions.Count;
-            #endregion
-
-            if (remainingPositionCount < bestScore)
-            {
-                bestScore = remainingPositionCount;
-                bestMineToTrigger = minePosition;
-            }
-        }
-
-        position = bestMineToTrigger;
-
-        return position != Position.None;
-    }
-
     private bool TrySelectMinePosition(out Position position, out Direction direction)
     {
         position = Position.None;
@@ -200,8 +177,7 @@ class AI
         var neighborWaterPositions = Map.GetNeighborPositions(myPosition)
             .Where(x => Map.IsWater(x.Item1))
             .ToList();
-
-        int maxCoverage = -1;
+        var placedMines = MySubmarine.GetPlacedMines();
 
         foreach (var item in neighborWaterPositions)
         {
@@ -210,45 +186,18 @@ class AI
 
             if (MySubmarine.HasPlacedMineAt(possibleMinePosition) == false)
             {
-                //Maximize area of blast
-                var newMines = MySubmarine.GetPlacedMines();
-                newMines.Add(possibleMinePosition);
+                var blastedPositions = GetBlastedPositions(possibleMinePosition);
+                var blastOtherMines = blastedPositions.Any(p => placedMines.Contains(p));
 
-                var coverage = ComputeCoveredAreaByMines(newMines);
-
-                Player.Debug($"Mine at {possibleMineDirection.ToString()}, coverage = {coverage.ToString()}");
-
-                var coverageIsBetter = coverage > maxCoverage;
-
-                if (coverageIsBetter)
+                if (blastOtherMines == false)
                 {
-                    maxCoverage = coverage;
                     position = possibleMinePosition;
                     direction = possibleMineDirection;
                 }
             }
         }
 
-        return maxCoverage > 0;
-    }
-
-    private static int ComputeCoveredAreaByMines(HashSet<Position> minePositions)
-    {
-        var blastedPositions = new HashSet<Position>();
-
-        foreach (var mine in minePositions)
-        {
-            foreach (var delta in Player.EightDirectionDeltas)
-            {
-                var blastedPosition = new Position(mine.x + delta.Item1, mine.y + delta.Item2);
-                if (Map.IsInMap(blastedPosition) && Map.IsWater(blastedPosition))
-                {
-                    blastedPositions.Add(blastedPosition);
-                }
-            }
-        }
-
-        return blastedPositions.Count;
+        return position != Position.None;
     }
 
     private Action SelectMoveAction()
@@ -319,21 +268,35 @@ class AI
             return Power.TORPEDO;
         }
 
-        if (_gameState.SilenceAvailable == false)
+        if (MySubmarine.TrackingService.PossiblePositions.Count > 30)
         {
-            return Power.SILENCE;
-        }
+            if (_gameState.MineAvailable == false)
+            {
+                return Power.MINE;
+            }
 
-        if (_gameState.MineAvailable == false)
+            if (_gameState.SilenceAvailable == false)
+            {
+                return Power.SILENCE;
+            }
+
+            if (_gameState.SonarAvailable == false)
+            {
+                return Power.SONAR;
+            }
+
+        }
+        else
         {
-            return Power.MINE;
+            if (_gameState.SilenceAvailable == false)
+            {
+                return Power.SILENCE;
+            }
+            if (_gameState.MineAvailable == false)
+            {
+                return Power.MINE;
+            }
         }
-
-        if (_gameState.SonarAvailable == false)
-        {
-            return Power.SONAR;
-        }
-
         return Power.MINE;
     }
 

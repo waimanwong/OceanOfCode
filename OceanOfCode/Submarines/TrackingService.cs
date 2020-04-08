@@ -40,13 +40,18 @@ public class TrackingService
     public void Track(SurfaceAction surfaceAction)
     {
         var sector = surfaceAction.sector;
-        var sectorPositions = Map.GetSectorWaterPositions(sector);
 
-        var newPositions = _possiblePositions.Where(p => sectorPositions.Contains(p)).ToHashSet();
+        if (sector != -1)
+        {
+            var sectorPositions = Map.GetSectorWaterPositions(sector);
+
+            var newPositions = _possiblePositions.Where(p => sectorPositions.Contains(p)).ToHashSet();
+
+            _possiblePositions = newPositions;
+        }
 
         _health--;
 
-        _possiblePositions = sectorPositions;
     }
 
     public void Track(TorpedoAction torpedoAction)
@@ -121,6 +126,21 @@ public class TrackingService
         }
         else if(lostHealtHCausedByWeapons == 0)
         {
+            foreach (var weaponAction in weaponActions)
+            {
+                var weaponPosition = weaponAction.TargetPosition;
+                _possiblePositions.Remove(weaponPosition);
+
+                var blastedPositions = Player.EightDirectionDeltas
+                    .Select(delta => new Position(weaponPosition.x + delta.Item1, weaponPosition.y + delta.Item2))
+                    .ToList();
+
+                foreach (var blastedPosition in blastedPositions)
+                {
+                    _possiblePositions.Remove(blastedPosition);
+                }
+            }
+                
             newPositions = _possiblePositions;
         }
         else

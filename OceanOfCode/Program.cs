@@ -36,7 +36,7 @@ class Player
 
     public static void Debug(string message)
     {
-        Console.Error.WriteLine(message);
+        //Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)
@@ -83,7 +83,7 @@ class Player
             int y = int.Parse(inputs[1]);
 
             var myPosition = new Position(x, y);
-
+            
             int myLife = int.Parse(inputs[2]);
             int oppLife = int.Parse(inputs[3]);
             int torpedoCooldown = int.Parse(inputs[4]);
