@@ -19,9 +19,11 @@ public static class OpponentSubmarine
         foreach (var action in opponentOrders)
         {
             OpponentSubmarine.ApplyAction(action);
-        }
 
-        
+            Player.Debug($"after processing {action.ToString()}");
+            Debug();
+
+        }
     }
 
     public static void Debug()

@@ -102,9 +102,8 @@ class Player
 
             var actions = ai.ComputeActions();
 
-            Player.Debug($"Myactions = {Action.ToText(actions)}");
             MySubmarine.ApplyActions(actions);            
-            MySubmarine.Debug();
+            //MySubmarine.Debug();
 
             mylastActions = actions;
 

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
+using System.Text;
 
 public class TrackingService
 {
@@ -57,8 +58,10 @@ public class TrackingService
     public void Track(TorpedoAction torpedoAction)
     {
         var torpedoPosition = torpedoAction.TargetPosition;
-        var area = Map.WaterPositions.Where(p => p.DistanceTo(torpedoPosition) <= 4);
-        var newPositions = _possiblePositions.Where(p => area.Contains(p)).ToHashSet();
+        
+        var newPositions = _possiblePositions
+            .Where(p => 1 <= p.DistanceTo(torpedoPosition) && p.DistanceTo(torpedoPosition) <= 4)
+            .ToHashSet();
 
         _possiblePositions = newPositions;
     }
@@ -155,11 +158,33 @@ public class TrackingService
     public void Debug()
     {
         Player.Debug($"possible positions: {_possiblePositions.Count}");
-        if(_possiblePositions.Count < 8)
+
+        var row = new StringBuilder();
+        for (int y=0; y < Map.Height; y++)
         {
-            var text = string.Join(",",_possiblePositions.Select(p => $"({p.ToString()})").ToArray());
-            Player.Debug(text);
+            row.Clear();
+            for(int x = 0; x < Map.Width; x++)
+            {
+                if(Map.IsIsland(x,y))
+                {
+                    row.Append("o");
+                }
+                else
+                {
+                    
+                    if(_possiblePositions.Contains(new Position(x,y)))
+                    {
+                        row.Append(".");
+                    }
+                    else
+                    {
+                        row.Append(" ");
+                    }
+                }
+            }
+            Player.Debug(row.ToString());
         }
+
     }
 
     private Direction GetOppositeDirection(Direction direction)

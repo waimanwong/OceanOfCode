@@ -19,11 +19,8 @@ class AI
         var selectedActions = SelectPowerActions();
         actions.AddRange(selectedActions);
 
-        if(selectedActions.OfType<SilenceAction>().Any() == false)
-        {
-            var selectedMoveAction = SelectMoveAction();
-            actions.Add(selectedMoveAction);
-        }
+        var selectedMoveAction = SelectMoveAction();
+        actions.Add(selectedMoveAction);
 
         return actions;
     }
@@ -63,6 +60,17 @@ class AI
     {
         torpedoPosition = Position.None;
 
+        var opponentPositions = OpponentSubmarine.PossiblePositions;
+        if (opponentPositions.Count == 1)
+        {
+            var opponentPosition = opponentPositions.Single();
+
+            if(opponentPosition.DistanceTo(MySubmarine.Position) <= 4)
+            {
+                torpedoPosition = opponentPosition;
+            }
+        }
+
         return torpedoPosition != Position.None;
     }
 
@@ -72,7 +80,7 @@ class AI
 
         var enemyPositions = OpponentSubmarine.PossiblePositions;
 
-        if (enemyPositions.Count > 10)
+        if (enemyPositions.Count > 20)
         {
             return false;
         }
@@ -124,42 +132,42 @@ class AI
             return false;
         }
 
-        var myPosition = MySubmarine.Position;
+        //var myPosition = MySubmarine.Position;
 
-        var possibleSilenceMoves = new HashSet<(Direction, int)>();
+        //var possibleSilenceMoves = new HashSet<(Direction, int)>();
 
-        foreach (var kvp in Player.FourDirectionDeltas)
-        {
-            var d = kvp.Key;
-            var delta = kvp.Value;
+        //foreach (var kvp in Player.FourDirectionDeltas)
+        //{
+        //    var d = kvp.Key;
+        //    var delta = kvp.Value;
 
-            var currentPosition = myPosition;
-            for (int step = 1; step <= 4; step++)
-            {
-                currentPosition = currentPosition.Translate(delta.Item1, delta.Item2);
-                if (Map.IsWater(currentPosition) && MySubmarine.VisitedPositions.Contains(currentPosition) == false)
-                {
-                    //ok
-                    possibleSilenceMoves.Add((d, step));
-                }
-                else
-                {
-                    break;
-                }
-            }
-        }
+        //    var currentPosition = myPosition;
+        //    for (int step = 1; step <= 4; step++)
+        //    {
+        //        currentPosition = currentPosition.Translate(delta.Item1, delta.Item2);
+        //        if (Map.IsWater(currentPosition) && MySubmarine.VisitedPositions.Contains(currentPosition) == false)
+        //        {
+        //            //ok
+        //            possibleSilenceMoves.Add((d, step));
+        //        }
+        //        else
+        //        {
+        //            break;
+        //        }
+        //    }
+        //}
 
-        if (possibleSilenceMoves.Count == 0)
-        {
-            return false;
-        }
+        //if (possibleSilenceMoves.Count == 0)
+        //{
+        //    return false;
+        //}
 
-        var random = new Random((int)Stopwatch.GetTimestamp());
-        var selectedIndex = random.Next(0, possibleSilenceMoves.Count - 1);
+        //var random = new Random((int)Stopwatch.GetTimestamp());
+        //var selectedIndex = random.Next(0, possibleSilenceMoves.Count - 1);
 
-        var selectedMove = possibleSilenceMoves.ElementAt(selectedIndex);
-        direction = selectedMove.Item1;
-        moves = selectedMove.Item2;
+        //var selectedMove = possibleSilenceMoves.ElementAt(selectedIndex);
+        //direction = selectedMove.Item1;
+        //moves = selectedMove.Item2;
         return true;
     }
 
@@ -268,35 +276,21 @@ class AI
             return Power.TORPEDO;
         }
 
-        if (MySubmarine.TrackingService.PossiblePositions.Count > 30)
+        if (_gameState.MineAvailable == false)
         {
-            if (_gameState.MineAvailable == false)
-            {
-                return Power.MINE;
-            }
-
-            if (_gameState.SilenceAvailable == false)
-            {
-                return Power.SILENCE;
-            }
-
-            if (_gameState.SonarAvailable == false)
-            {
-                return Power.SONAR;
-            }
-
+            return Power.MINE;
         }
-        else
+
+        if (_gameState.SilenceAvailable == false)
         {
-            if (_gameState.SilenceAvailable == false)
-            {
-                return Power.SILENCE;
-            }
-            if (_gameState.MineAvailable == false)
-            {
-                return Power.MINE;
-            }
+            return Power.SILENCE;
         }
+
+        if (_gameState.SonarAvailable == false)
+        {
+            return Power.SONAR;
+        }
+
         return Power.MINE;
     }
 
