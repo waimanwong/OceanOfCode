@@ -16,11 +16,15 @@ public static class OpponentSubmarine
         {
             OpponentSubmarine.ApplyAction(action);
         }
+
     }
 
     public static void Debug()
     {
+        Player.Debug("*********************************************");
+        Player.Debug("Opponent submarine data");
         _trackingService.Debug();
+        Player.Debug("*********************************************");
     }
 
     private static void ApplyAction(Action action)

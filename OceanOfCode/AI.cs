@@ -29,28 +29,28 @@ class AI
     {
         var powerActions = new List<Action>();
 
-        //Silence ?
+        ////Silence ?
         if (TrySilence(out var silenceDirection, out var moves))
         {
             powerActions.Add(MySubmarine.Silence(silenceDirection, moves));
         }
 
-        //Place mine ?
+        ////Place mine ?
         if (TrySelectMinePosition(out var position, out var mineDirection))
         {
             powerActions.Add(MySubmarine.PlaceMine((position, mineDirection)));
         }
 
-        //Trigger mine ?
+        ////Trigger mine ?
         if (TryTriggerMine(out var minePosition))
         {
             powerActions.Add(MySubmarine.TriggerMine(minePosition));
         }
 
-        if (TryLaunchTorpedo(out var torpedoPosition))
-        {
-            powerActions.Add(MySubmarine.LaunchTorpedo(torpedoPosition));
-        }
+        //if (TryLaunchTorpedo(out var torpedoPosition))
+        //{
+        //    powerActions.Add(MySubmarine.LaunchTorpedo(torpedoPosition));
+        //}
 
         return powerActions;
     }

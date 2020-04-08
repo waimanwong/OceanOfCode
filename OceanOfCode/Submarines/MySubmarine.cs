@@ -20,7 +20,10 @@ public static class MySubmarine
 
     public static void Debug()
     {
+        Player.Debug("*********************************************");
+        Player.Debug("MySubmarine data");
         _trackingService.Debug();
+        Player.Debug("*********************************************");
     }
 
     public static void ApplyAction(Action action)

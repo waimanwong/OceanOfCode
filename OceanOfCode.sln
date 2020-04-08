@@ -6,9 +6,6 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OceanOfCode", "OceanOfCode\OceanOfCode.csproj", "{BB828CB6-1F7C-4E70-A488-AFAA4107EE52}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{9330BFCE-53F5-4E8F-9896-49F7E0E5BA21}"
-	ProjectSection(SolutionItems) = preProject
-		output.cs = output.cs
-	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

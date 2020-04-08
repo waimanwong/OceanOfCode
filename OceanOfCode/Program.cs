@@ -1,8 +1,16 @@
-﻿using System;
+using System;
+using System.Linq;
 using System.IO;
 using System.Text;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
+
+/**
+ * Auto-generated code below aims at helping you parse
+ * the standard input according to the problem statement.
+ **/
+
 
 public enum Direction { N, S, E, W }
 
@@ -82,7 +90,7 @@ class Player
             int mineCooldown = int.Parse(inputs[7]);
 
             OpponentSubmarine.UpdateState(oppLife, txtOpponentOrders);
-            //OpponentSubmarine.Debug();
+            OpponentSubmarine.Debug();
 
             MySubmarine.JustTriggeredWeapons.Clear();
 
@@ -95,10 +103,9 @@ class Player
             foreach(var action in actions)
             {
                 MySubmarine.ApplyAction(action);
-                MySubmarine.Debug();
             }
+            MySubmarine.Debug();
                     
-
             Console.WriteLine(Action.ToText(actions));
         }
     }

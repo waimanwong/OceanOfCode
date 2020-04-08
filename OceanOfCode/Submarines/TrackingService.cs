@@ -68,6 +68,10 @@ public class TrackingService
                     {
                         newPossiblePositions.Add(newPos);
                     }
+                    else
+                    {
+                        break;
+                    }
                 }
             }
         }
@@ -78,7 +82,7 @@ public class TrackingService
     public void Debug()
     {
         Player.Debug($"possible positions: {_possiblePositions.Count}");
-        if(_possiblePositions.Count < 10)
+        if(_possiblePositions.Count < 15)
         {
             var text = string.Join(",",_possiblePositions.Select(p => $"({p.ToString()})").ToArray());
             Player.Debug(text);
