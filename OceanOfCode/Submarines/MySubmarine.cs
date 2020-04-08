@@ -26,6 +26,11 @@ public static class MySubmarine
         Player.Debug("*********************************************");
     }
 
+    public static void ApplyActions(List<Action> actions)
+    {
+        actions.ForEach(ApplyAction);
+    }
+
     public static void ApplyAction(Action action)
     {
         if (action is MoveAction)

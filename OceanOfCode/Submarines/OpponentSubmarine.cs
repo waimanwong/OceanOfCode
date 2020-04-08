@@ -8,7 +8,7 @@ public static class OpponentSubmarine
 
     public static HashSet<Position> PossiblePositions => _trackingService.PossiblePositions;
 
-    public static void UpdateState(int newHealth, string txtOpponentOrders)
+    public static void UpdateState(int newHealth, string txtOpponentOrders, List<Action> myActions)
     {
         var opponentOrders = Action.Parse(txtOpponentOrders);
        
@@ -17,6 +17,7 @@ public static class OpponentSubmarine
             OpponentSubmarine.ApplyAction(action);
         }
 
+        _trackingService.Track(newHealth, myActions);
     }
 
     public static void Debug()

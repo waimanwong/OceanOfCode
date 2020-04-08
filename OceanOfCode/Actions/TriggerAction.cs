@@ -1,15 +1,15 @@
 ﻿
-public class TriggerAction : Action
+public class TriggerAction : Action, IWeaponAction
 {
-    private Position _position;
-
+    public Position TargetPosition { get; }
+    
     public TriggerAction(Position position)
     {
-        _position = position;
+        TargetPosition = position;
     }
 
     public override string ToString()
     {
-        return $"TRIGGER {_position.ToString()}";
+        return $"TRIGGER {TargetPosition.ToString()}";
     }
 }

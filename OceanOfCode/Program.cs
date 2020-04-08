@@ -62,7 +62,9 @@ class Player
         Console.WriteLine(initialPosition.ToString());
 
         MySubmarine.MoveMySubmarine((initialPosition, Direction.E), Power.MINE);
-        
+
+        var mylastActions = new List<Action>();
+
         // game loop
         while (true)
         {
@@ -89,7 +91,7 @@ class Player
             int silenceCooldown = int.Parse(inputs[6]);
             int mineCooldown = int.Parse(inputs[7]);
 
-            OpponentSubmarine.UpdateState(oppLife, txtOpponentOrders);
+            OpponentSubmarine.UpdateState(oppLife, txtOpponentOrders, mylastActions);
             OpponentSubmarine.Debug();
 
             MySubmarine.JustTriggeredWeapons.Clear();
@@ -100,12 +102,12 @@ class Player
 
             var actions = ai.ComputeActions();
 
-            foreach(var action in actions)
-            {
-                MySubmarine.ApplyAction(action);
-            }
+            Player.Debug($"Myactions = {Action.ToText(actions)}");
+            MySubmarine.ApplyActions(actions);            
             MySubmarine.Debug();
-                    
+
+            mylastActions = actions;
+
             Console.WriteLine(Action.ToText(actions));
         }
     }
