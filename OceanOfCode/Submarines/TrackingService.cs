@@ -6,9 +6,10 @@ using System.Text;
 public class TrackingService
 {
     private HashSet<Position> _possiblePositions = new HashSet<Position>();
-    private int _health = 6;
-    
+    private int _health = -6;
     private MoveAction _lastMoveAction = null;
+
+    public int Health => _health;
 
     public TrackingService(HashSet<Position> initialPositions)
     {
@@ -100,7 +101,7 @@ public class TrackingService
         _possiblePositions = newPossiblePositions;
     }
 
-    public void Track(int newHealth, List<Action> opponentActions)
+    public void Track(int newHealth, IEnumerable<Action> opponentActions)
     {
         var lostHealtHCausedByWeapons = _health - newHealth;
         var weaponActions = opponentActions.OfType<IWeaponAction>();

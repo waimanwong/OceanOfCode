@@ -97,10 +97,13 @@ class AI
             {
                 var count = enemyPositions.Count(p => blastedPositions.Contains(p));
 
-                if (count > blastedOpponentPositions)
+                if(count >= 6 || enemyPositions.Count <= 6)
                 {
-                    blastedOpponentPositions = count;
-                    bestMinePosition = minePosition;
+                    if (count > blastedOpponentPositions)
+                    {
+                        blastedOpponentPositions = count;
+                        bestMinePosition = minePosition;
+                    }
                 }
             }
         }
@@ -127,48 +130,7 @@ class AI
         direction = Direction.E;
         moves = 0;
 
-        if (_gameState.SilenceAvailable == false)
-        {
-            return false;
-        }
-
-        //var myPosition = MySubmarine.Position;
-
-        //var possibleSilenceMoves = new HashSet<(Direction, int)>();
-
-        //foreach (var kvp in Player.FourDirectionDeltas)
-        //{
-        //    var d = kvp.Key;
-        //    var delta = kvp.Value;
-
-        //    var currentPosition = myPosition;
-        //    for (int step = 1; step <= 4; step++)
-        //    {
-        //        currentPosition = currentPosition.Translate(delta.Item1, delta.Item2);
-        //        if (Map.IsWater(currentPosition) && MySubmarine.VisitedPositions.Contains(currentPosition) == false)
-        //        {
-        //            //ok
-        //            possibleSilenceMoves.Add((d, step));
-        //        }
-        //        else
-        //        {
-        //            break;
-        //        }
-        //    }
-        //}
-
-        //if (possibleSilenceMoves.Count == 0)
-        //{
-        //    return false;
-        //}
-
-        //var random = new Random((int)Stopwatch.GetTimestamp());
-        //var selectedIndex = random.Next(0, possibleSilenceMoves.Count - 1);
-
-        //var selectedMove = possibleSilenceMoves.ElementAt(selectedIndex);
-        //direction = selectedMove.Item1;
-        //moves = selectedMove.Item2;
-        return true;
+        return _gameState.SilenceAvailable;
     }
 
     private bool TrySelectMinePosition(out Position position, out Direction direction)
@@ -225,48 +187,54 @@ class AI
             return MySubmarine.MoveMySubmarine(possibleMove, SelectPowerToCharge());
         }
 
-        var bestMove = possibleMoves.First();
-        var bestScore = 0;
-        var bestFilledRegion = new HashSet<Position>();
         var visitedPositions = MySubmarine.VisitedPositions;
+        var rankedMoves = new Dictionary<int, List<Tuple<Position, Direction>>>();
 
         foreach (var possibleMove in possibleMoves)
-        {
-            if (bestFilledRegion.Contains(possibleMove.Item1))
+        {   
+            var floodFillEngine = new FloodFillEngine(visitedPositions);
+            var filledRegion = floodFillEngine.Run(possibleMove.Item1);
+            var score = filledRegion.Count;
+
+            if(rankedMoves.ContainsKey(score) == false)
             {
-                //the possible move result in the same bestfilled region
-                var freedomScore = new Func<Position, int>(pos =>
-                       Map.GetNeighborPositions(pos)
-                           .Count(p => Map.IsWater(p.Item1) && visitedPositions.Contains(p.Item1) == false));
-
-                var bestPositionFreedomScore = freedomScore(bestMove.Item1);
-                var currentMoveFreedomScore = freedomScore(possibleMove.Item1);
-
-                if (currentMoveFreedomScore < bestPositionFreedomScore)
-                {
-                    //go toward position with least freedom
-                    bestMove = possibleMove;
-                }
+                rankedMoves[score] = new List<Tuple<Position, Direction>>();
             }
-            else
+
+            rankedMoves[score].Add(new Tuple<Position, Direction>(possibleMove.Item1, possibleMove.Item2));
+        }
+
+        var bestMoves = rankedMoves.OrderByDescending(kvp => kvp.Key).First().Value;
+        var bestMove = GetBestMoveByStealth(bestMoves);
+        
+        return MySubmarine.MoveMySubmarine(bestMove, SelectPowerToCharge());
+    }
+
+    private (Position,Direction) GetBestMoveByStealth(List<Tuple<Position, Direction>> moves)
+    {
+        if(moves.Count == 1)
+            return (moves.Single().Item1, moves.Single().Item2);
+
+        var estimationOfMyPositions = MySubmarine.TrackingService.PossiblePositions;
+
+        var bestScore = 0;
+        var bestMove = moves.First();
+
+        foreach(var possibleMove in moves)
+        {
+            var trackingService = new TrackingService(estimationOfMyPositions);
+            var moveAction = new MoveAction(possibleMove.Item2, Power.UNKNOWN);
+            trackingService.Track(moveAction);
+
+            var score = trackingService.PossiblePositions.Count;
+            if(score > bestScore)
             {
-                var floodFillEngine = new FloodFillEngine(visitedPositions);
-
-                var filledRegion = floodFillEngine.Run(possibleMove.Item1);
-
-                var score = filledRegion.Count;
-
-                if (score > bestScore)
-                {
-                    //Go to the position with largest region
-                    bestScore = score;
-                    bestMove = possibleMove;
-                    bestFilledRegion = filledRegion;
-                }
+                bestScore = score;
+                bestMove = possibleMove;
             }
         }
 
-        return MySubmarine.MoveMySubmarine(bestMove, SelectPowerToCharge());
+        return (bestMove.Item1, bestMove.Item2);
     }
 
     private Power SelectPowerToCharge()

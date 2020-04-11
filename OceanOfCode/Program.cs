@@ -36,7 +36,7 @@ class Player
 
     public static void Debug(string message)
     {
-        Console.Error.WriteLine(message);
+        //Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)
@@ -57,8 +57,7 @@ class Player
         // Write an action using Console.WriteLine()
         // To debug: Console.Error.WriteLine("Debug messages...");
 
-        var initialPosition = new StartingPositionComputer()
-            .EvaluateBestPosition();
+        var initialPosition = new StartingPositionComputer().EvaluateBestPosition();
         Console.WriteLine(initialPosition.ToString());
 
         MySubmarine.MoveMySubmarine((initialPosition, Direction.E), Power.MINE);
@@ -92,7 +91,8 @@ class Player
             int mineCooldown = int.Parse(inputs[7]);
 
             OpponentSubmarine.UpdateState(oppLife, txtOpponentOrders, mylastActions);
-            
+            MySubmarine.UpdateState(myLife);
+
             MySubmarine.JustTriggeredWeapons.Clear();
 
             var gameState = new GameState(torpedoCooldown, sonarCooldown, silenceCooldown, mineCooldown);

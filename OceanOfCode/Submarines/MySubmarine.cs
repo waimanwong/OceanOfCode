@@ -11,6 +11,11 @@ public static class MySubmarine
 
     private static readonly HashSet<Position> MinePositions = new HashSet<Position>();
 
+    public static void UpdateState(int health)
+    {
+        TrackingService.Track(health, Enumerable.Empty<Action>());
+    }
+
     private static void MoveTo(Position position)
     {
         Position = position;
@@ -31,7 +36,7 @@ public static class MySubmarine
         actions.ForEach(ApplyAction);
     }
 
-    public static void ApplyAction(Action action)
+    private static void ApplyAction(Action action)
     {
         if (action is MoveAction)
         {
