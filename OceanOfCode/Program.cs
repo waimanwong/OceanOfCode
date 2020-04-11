@@ -36,7 +36,7 @@ class Player
 
     public static void Debug(string message)
     {
-        //Console.Error.WriteLine(message);
+        Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)
@@ -68,14 +68,11 @@ class Player
         while (true)
         {
             MySubmarine.Debug();
+            OpponentSubmarine.Debug();
 
             var line = Console.ReadLine();
             var sonarLine = Console.ReadLine();
             var txtOpponentOrders = Console.ReadLine();
-
-            //Debug(line);
-            //Debug($"Sonar Rsult: {sonarLine}");
-            //Debug($"txtOpponentOrders: {txtOpponentOrders}");
 
             inputs = line.Split(' ');
             int x = int.Parse(inputs[0]);
@@ -93,12 +90,8 @@ class Player
             OpponentSubmarine.UpdateState(oppLife, txtOpponentOrders, mylastActions);
             MySubmarine.UpdateState(myLife);
 
-            MySubmarine.JustTriggeredWeapons.Clear();
-
             var gameState = new GameState(torpedoCooldown, sonarCooldown, silenceCooldown, mineCooldown);
-
             var ai = new AI(gameState);
-
             var actions = ai.ComputeActions();
 
             MySubmarine.ApplyActions(actions);            

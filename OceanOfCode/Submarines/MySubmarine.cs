@@ -9,6 +9,8 @@ public static class MySubmarine
 
     private static readonly HashSet<Position> _visitedPositions = new HashSet<Position>();
 
+    public static HashSet<Position> PossiblePositions => TrackingService.PossiblePositions;
+
     private static readonly HashSet<Position> MinePositions = new HashSet<Position>();
 
     public static void UpdateState(int health)
@@ -33,41 +35,32 @@ public static class MySubmarine
 
     public static void ApplyActions(List<Action> actions)
     {
-        actions.ForEach(ApplyAction);
-    }
-
-    private static void ApplyAction(Action action)
-    {
-        if (action is MoveAction)
+        foreach(var action in actions)
         {
-            TrackingService.Track((MoveAction)action);
-            return;
+            if (action is MoveAction)
+            {
+                TrackingService.Track((MoveAction)action);
+                return;
+            }
+
+            if (action is SurfaceAction)
+            {
+                TrackingService.Track((SurfaceAction)action);
+                return;
+            }
+
+            if (action is TorpedoAction)
+            {
+                TrackingService.Track((TorpedoAction)action);
+                return;
+            }
+
+            if (action is SilenceAction)
+            {
+                TrackingService.Track((SilenceAction)action);
+                return;
+            }
         }
-
-        if (action is SurfaceAction)
-        {
-            TrackingService.Track((SurfaceAction)action);
-            return;
-        }
-
-        if (action is TorpedoAction)
-        {
-            TrackingService.Track((TorpedoAction)action);
-            return;
-        }
-
-        if (action is SilenceAction)
-        {
-            TrackingService.Track((SilenceAction)action);
-            return;
-        }
-
-        return;
-    }
-
-    public static void ResetVisitedPositions()
-    {
-        _visitedPositions.Clear();
     }
 
     public static HashSet<Position> VisitedPositions => _visitedPositions.ToHashSet();
@@ -82,12 +75,8 @@ public static class MySubmarine
         return MinePositions.ToHashSet();
     }
 
-    public static List<Position> JustTriggeredWeapons = new List<Position>();
-
     public static TorpedoAction LaunchTorpedo(Position position)
     {
-        JustTriggeredWeapons.Add(position);
-
         return new TorpedoAction(position);
     }
 
@@ -108,8 +97,9 @@ public static class MySubmarine
     }
 
     public static SurfaceAction SurfaceMySubmarine()
-    {
-        ResetVisitedPositions();
+    {   
+        _visitedPositions.Clear();
+    
         MoveTo(Position);
         return new SurfaceAction();
     }
@@ -117,8 +107,6 @@ public static class MySubmarine
     public static TriggerAction TriggerMine(Position p)
     {
         MinePositions.Remove(p);
-
-        JustTriggeredWeapons.Add(p);
 
         return new TriggerAction(p);
     }

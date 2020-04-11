@@ -16,6 +16,9 @@ class AI
     {
         var actions = new List<Action>();
 
+        var stealthScore = $"{MySubmarine.PossiblePositions.Count} - {OpponentSubmarine.PossiblePositions.Count}";
+        actions.Add(new MessageAction(stealthScore));
+
         var selectedActions = SelectPowerActions();
         actions.AddRange(selectedActions);
 
