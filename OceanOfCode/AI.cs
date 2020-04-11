@@ -80,7 +80,7 @@ class AI
 
         var enemyPositions = OpponentSubmarine.PossiblePositions;
 
-        if (enemyPositions.Count > 20)
+        if (enemyPositions.Count > 30)
         {
             return false;
         }

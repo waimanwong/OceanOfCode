@@ -36,7 +36,7 @@ class Player
 
     public static void Debug(string message)
     {
-        //Console.Error.WriteLine(message);
+        Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)
@@ -68,7 +68,7 @@ class Player
         // game loop
         while (true)
         {
-            //MySubmarine.Debug();
+            MySubmarine.Debug();
 
             var line = Console.ReadLine();
             var sonarLine = Console.ReadLine();
@@ -102,8 +102,7 @@ class Player
             var actions = ai.ComputeActions();
 
             MySubmarine.ApplyActions(actions);            
-            //MySubmarine.Debug();
-
+            
             mylastActions = actions;
 
             Console.WriteLine(Action.ToText(actions));
