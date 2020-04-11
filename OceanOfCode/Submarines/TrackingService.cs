@@ -41,9 +41,11 @@ public class TrackingService
     public void Track(SurfaceAction surfaceAction)
     {
         var sector = surfaceAction.sector;
-
+        
         if (sector != -1)
-        {
+        {   
+            Player.Debug($"Enemy surfaces at sector {sector.ToString()}");
+
             var sectorPositions = Map.GetSectorWaterPositions(sector);
 
             var newPositions = _possiblePositions.Where(p => sectorPositions.Contains(p)).ToHashSet();
@@ -71,6 +73,7 @@ public class TrackingService
         var newPossiblePositions = new HashSet<Position>();
 
         var excludeDirection = GetOppositeDirection(_lastMoveAction.Direction);
+
         var possibleDirections = Player.FourDirectionDeltas.Where(x => x.Key != excludeDirection).ToList();
 
         foreach (var pos in _possiblePositions)
@@ -102,53 +105,48 @@ public class TrackingService
         var lostHealtHCausedByWeapons = _health - newHealth;
         var weaponActions = opponentActions.OfType<IWeaponAction>();
 
-        var newPositions = new HashSet<Position>();
-        if (lostHealtHCausedByWeapons == 2)
+        if(weaponActions.Count() == 0)
         {
-            foreach (var weaponAction in weaponActions)
-            {
-                if (_possiblePositions.Contains(weaponAction.TargetPosition))
-                    newPositions.Add(weaponAction.TargetPosition);
-            }
+            return;
         }
-        else if (lostHealtHCausedByWeapons == 1)
+
+        var newPositions = new HashSet<Position>();
+
+        foreach (var weaponAction in weaponActions)
         {
-            foreach (var weaponAction in weaponActions)
-            {
-                var weaponPosition = weaponAction.TargetPosition;
-                var blastedPositions = Player.EightDirectionDeltas
+            var weaponPosition = weaponAction.TargetPosition;
+            var blastedPositions = Player.EightDirectionDeltas
                     .Select(delta => new Position(weaponPosition.x + delta.Item1, weaponPosition.y + delta.Item2))
                     .ToList();
 
+            if (lostHealtHCausedByWeapons >= 2)
+            {
+                //Direct damage
+                newPositions.Add(weaponPosition);
+                lostHealtHCausedByWeapons -= 2;
+            }
+            else if( lostHealtHCausedByWeapons == 1)
+            {
                 foreach(var blastedPosition in blastedPositions)
                 {
                     if (_possiblePositions.Contains(blastedPosition))
                         newPositions.Add(blastedPosition);
                 }
+
+                lostHealtHCausedByWeapons--;
             }
-        }
-        else if(lostHealtHCausedByWeapons == 0)
-        {
-            foreach (var weaponAction in weaponActions)
+            else
             {
-                var weaponPosition = weaponAction.TargetPosition;
-                _possiblePositions.Remove(weaponPosition);
-
-                var blastedPositions = Player.EightDirectionDeltas
-                    .Select(delta => new Position(weaponPosition.x + delta.Item1, weaponPosition.y + delta.Item2))
-                    .ToList();
-
-                foreach (var blastedPosition in blastedPositions)
+                foreach(var position in _possiblePositions)
                 {
-                    _possiblePositions.Remove(blastedPosition);
+                    var positionIsNotBlasted = position != weaponPosition &&
+                            blastedPositions.Contains(position) == false;
+                    if(positionIsNotBlasted)
+                    {
+                        newPositions.Add(position);
+                    }
                 }
             }
-                
-            newPositions = _possiblePositions;
-        }
-        else
-        {
-            Player.Debug($"Not supported lost health {lostHealtHCausedByWeapons}");
         }
 
         _health = newHealth;
@@ -163,11 +161,12 @@ public class TrackingService
         for (int y=0; y < Map.Height; y++)
         {
             row.Clear();
+            row.Append('|');
             for(int x = 0; x < Map.Width; x++)
             {
                 if(Map.IsIsland(x,y))
                 {
-                    row.Append("o");
+                    row.Append("*");
                 }
                 else
                 {
@@ -182,6 +181,7 @@ public class TrackingService
                     }
                 }
             }
+            row.Append('|');
             Player.Debug(row.ToString());
         }
 

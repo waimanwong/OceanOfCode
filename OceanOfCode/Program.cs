@@ -92,8 +92,7 @@ class Player
             int mineCooldown = int.Parse(inputs[7]);
 
             OpponentSubmarine.UpdateState(oppLife, txtOpponentOrders, mylastActions);
-            OpponentSubmarine.Debug();
-
+            
             MySubmarine.JustTriggeredWeapons.Clear();
 
             var gameState = new GameState(torpedoCooldown, sonarCooldown, silenceCooldown, mineCooldown);
