@@ -166,14 +166,14 @@ public class TrackingService
             {
                 if(Map.IsIsland(x,y))
                 {
-                    row.Append("*");
+                    row.Append(".");
                 }
                 else
                 {
                     
                     if(_possiblePositions.Contains(new Position(x,y)))
                     {
-                        row.Append(".");
+                        row.Append("?");
                     }
                     else
                     {
