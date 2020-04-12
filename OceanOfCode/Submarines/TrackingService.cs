@@ -193,14 +193,15 @@ public class TrackingService
             row.Append('|');
             for(int x = 0; x < Map.Width; x++)
             {
-                if(Map.IsWater(x,y) == false)
+                var position = new Position(x,y);
+
+                if(Map.IsWater(position) == false)
                 {
                     row.Append(".");
                 }
                 else
-                {
-                    
-                    if(_possiblePositions.Contains(new Position(x,y)))
+                {   
+                    if(_possiblePositions.Contains(position))
                     {
                         row.Append("?");
                     }

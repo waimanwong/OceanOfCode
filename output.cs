@@ -7,7 +7,7 @@ using System.Text;
 using System.Collections;
 
 
- // LastEdited: 13/04/2020 0:32 
+ // LastEdited: 13/04/2020 0:39 
 
 
 
@@ -418,12 +418,12 @@ static class Map
 
     public static bool IsWater(Position coord)
     {
-        return IsWater(coord.x, coord.y);
-    }
+        var x = coord.x;
+        var y = coord.y;
 
-    public static bool IsWater(int x, int y)
-    {
-        return (0 <= x && x < Width) && (0 <= y && y < Height) &&
+        return 
+            (0 <= x && x < Width) && 
+            (0 <= y && y < Height) &&
             Rows[y][x] == Water;
     }
 
@@ -1251,14 +1251,15 @@ public class TrackingService
             row.Append('|');
             for(int x = 0; x < Map.Width; x++)
             {
-                if(Map.IsWater(x,y) == false)
+                var position = new Position(x,y);
+
+                if(Map.IsWater(position) == false)
                 {
                     row.Append(".");
                 }
                 else
-                {
-                    
-                    if(_possiblePositions.Contains(new Position(x,y)))
+                {   
+                    if(_possiblePositions.Contains(position))
                     {
                         row.Append("?");
                     }
