@@ -21,10 +21,10 @@ class Player
     public static Direction[] AllDirections = new[] { Direction.E, Direction.N, Direction.S, Direction.W };
     public static Dictionary<Direction, (int, int)> FourDirectionDeltas = new Dictionary<Direction, (int, int)>
     {
-        {  Direction.S, (0, 1) },
-        {  Direction.W, (-1, 0) },
-        {  Direction.E, (1, 0) },
-        {  Direction.N, (0, -1) },
+        {  Direction.S, (0 ,  1) },
+        {  Direction.W, (-1,  0) },
+        {  Direction.E, (1 ,  0) },
+        {  Direction.N, (0 , -1) },
     };
 
     public static (int, int)[] EightDirectionDeltas = new (int, int)[]
@@ -67,9 +67,7 @@ class Player
         // game loop
         while (true)
         {
-            MySubmarine.Debug();
-            OpponentSubmarine.Debug();
-
+            
             var line = Console.ReadLine();
             var sonarLine = Console.ReadLine();
             var txtOpponentOrders = Console.ReadLine();
@@ -87,8 +85,18 @@ class Player
             int silenceCooldown = int.Parse(inputs[6]);
             int mineCooldown = int.Parse(inputs[7]);
 
-            OpponentSubmarine.UpdateState(oppLife, txtOpponentOrders, mylastActions);
-            MySubmarine.UpdateState(myLife);
+            var opponentActions = Action.Parse(txtOpponentOrders);
+            
+
+            Player.Debug("*** OpponentSubmarine.UpdateState ***");
+            OpponentSubmarine.UpdateState(oppLife, opponentActions, mylastActions);
+            OpponentSubmarine.Debug();
+            Player.Debug("");
+
+            Player.Debug("*** MySubmarine.UpdateState ***");
+            MySubmarine.UpdateState(myLife, mylastActions, opponentActions);
+            MySubmarine.Debug();
+            
 
             var gameState = new GameState(torpedoCooldown, sonarCooldown, silenceCooldown, mineCooldown);
             var ai = new AI(gameState);

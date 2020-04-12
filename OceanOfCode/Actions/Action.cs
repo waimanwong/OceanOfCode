@@ -14,7 +14,7 @@ public abstract class Action
 
         foreach (var order in orders)
         {
-            var tokens = order.Split(' ');
+            var tokens = order.Trim().Split(' ');
             var cmd = tokens[0];
             switch (cmd)
             {

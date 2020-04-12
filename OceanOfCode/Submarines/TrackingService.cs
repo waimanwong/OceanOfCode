@@ -106,6 +106,8 @@ public class TrackingService
         var lostHealtHCausedByWeapons = _health - newHealth;
         var weaponActions = opponentActions.OfType<IWeaponAction>();
 
+        _health = newHealth;
+
         if(weaponActions.Count() == 0)
         {
             return;
@@ -150,7 +152,7 @@ public class TrackingService
             }
         }
 
-        _health = newHealth;
+        
         _possiblePositions = newPositions;
     }
 

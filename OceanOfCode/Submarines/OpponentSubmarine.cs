@@ -8,26 +8,18 @@ public static class OpponentSubmarine
 
     public static HashSet<Position> PossiblePositions => _trackingService.PossiblePositions;
 
-    public static void UpdateState(int newHealth, string txtOpponentOrders, List<Action> myActions)
+    public static void UpdateState(int newHealth, List<Action> opponentActions, List<Action> myActions)
     {
         //Play first my actions
         _trackingService.Track(newHealth, myActions);
 
         //Then opponent actions
-        var opponentOrders = Action.Parse(txtOpponentOrders);
-       
-        foreach (var action in opponentOrders)
-        {
-            OpponentSubmarine.ApplyAction(action);
-        }
+        opponentActions.ForEach(OpponentSubmarine.ApplyAction);
     }
 
     public static void Debug()
     {
-        Player.Debug("*********************************************");
-        Player.Debug("Opponent submarine data");
         _trackingService.Debug();
-        Player.Debug("*********************************************");
     }
 
     private static void ApplyAction(Action action)

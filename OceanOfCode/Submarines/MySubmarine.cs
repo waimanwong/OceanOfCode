@@ -13,9 +13,9 @@ public static class MySubmarine
 
     private static readonly HashSet<Position> MinePositions = new HashSet<Position>();
 
-    public static void UpdateState(int health)
+    public static void UpdateState(int health, List<Action> myActions, List<Action> opponentActions)
     {
-        TrackingService.Track(health, Enumerable.Empty<Action>());
+        TrackingService.Track(health, opponentActions);
     }
 
     private static void MoveTo(Position position)
@@ -27,10 +27,7 @@ public static class MySubmarine
 
     public static void Debug()
     {
-        Player.Debug("*********************************************");
-        Player.Debug("MySubmarine data");
         TrackingService.Debug();
-        Player.Debug("*********************************************");
     }
 
     public static void ApplyActions(List<Action> actions)
