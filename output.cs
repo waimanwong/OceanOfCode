@@ -7,7 +7,7 @@ using System.Text;
 using System.Collections;
 
 
- // LastEdited: 12/04/2020 23:40 
+ // LastEdited: 13/04/2020 0:32 
 
 
 
@@ -378,11 +378,7 @@ static class Map
     private static char Water = '.';
     private static char Island = 'x';
 
-    private static Dictionary<int, HashSet<Position>> PossibleMovesByCount;
-
     public static HashSet<Position> WaterPositions = new HashSet<Position>();
-
-    private static int[][] PossibleMoveCount;
 
     public static void InitializeMap(int height, int width, string[] rows)
     {
@@ -390,17 +386,8 @@ static class Map
         Width = width;
         Rows = rows;
 
-        PossibleMoveCount = new int[height][];
-        PossibleMovesByCount = new Dictionary<int, HashSet<Position>>();
-        for (int i = 1; i < 5; i++)
-        {
-            PossibleMovesByCount[i] = new HashSet<Position>();
-        }
-
         for (int y = 0; y < height; y++)
         {
-            PossibleMoveCount[y] = new int[width];
-
             for (int x = 0; x < width; x++)
             {
                 var position = new Position(x, y);
@@ -408,14 +395,6 @@ static class Map
                 if (IsWater(position))
                 {
                     WaterPositions.Add(position);
-
-                    var possibleMoveCount = Map.GetNeighborPositions(position)
-                        .Count(neighpos => IsWater(neighpos.Item1));
-
-                    PossibleMoveCount[y][x] = possibleMoveCount;
-
-                    if (possibleMoveCount > 0)
-                        PossibleMovesByCount[possibleMoveCount].Add(position);
                 }
             }
         }
@@ -439,31 +418,13 @@ static class Map
 
     public static bool IsWater(Position coord)
     {
-        var (x, y) = (coord.x, coord.y);
-
-        return IsWater(x, y);
+        return IsWater(coord.x, coord.y);
     }
 
     public static bool IsWater(int x, int y)
     {
-        return (0 <= x && x < Width) &&
-            (0 <= y && y < Height) &&
+        return (0 <= x && x < Width) && (0 <= y && y < Height) &&
             Rows[y][x] == Water;
-    }
-
-
-    public static bool IsIsland(Position coord)
-    {
-        var (x, y) = (coord.x, coord.y);
-
-        return IsIsland(x, y);
-    }
-
-    public static bool IsIsland(int x, int y)
-    {
-        return (0 <= x && x < Width) &&
-            (0 <= y && y < Height) &&
-            Rows[y][x] == Island;
     }
 
     /// <summary>
@@ -1290,7 +1251,7 @@ public class TrackingService
             row.Append('|');
             for(int x = 0; x < Map.Width; x++)
             {
-                if(Map.IsIsland(x,y))
+                if(Map.IsWater(x,y) == false)
                 {
                     row.Append(".");
                 }

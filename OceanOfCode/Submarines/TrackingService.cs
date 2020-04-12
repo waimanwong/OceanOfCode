@@ -193,7 +193,7 @@ public class TrackingService
             row.Append('|');
             for(int x = 0; x < Map.Width; x++)
             {
-                if(Map.IsIsland(x,y))
+                if(Map.IsWater(x,y) == false)
                 {
                     row.Append(".");
                 }
