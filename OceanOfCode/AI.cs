@@ -63,6 +63,9 @@ class AI
     {
         torpedoPosition = Position.None;
 
+        if(_gameState.TorpedoAvailable == false)
+            return false;
+
         var opponentPositions = OpponentSubmarine.PossiblePositions;
         if (opponentPositions.Count == 1)
         {
