@@ -6,12 +6,12 @@ static class Map
 {
     public static int Height;
     public static int Width;
-    public static string[] Rows;
+    private static string[] Rows;
 
     private static char Water = '.';
     private static char Island = 'x';
 
-    public static Dictionary<int, HashSet<Position>> PossibleMovesByCount;
+    private static Dictionary<int, HashSet<Position>> PossibleMovesByCount;
 
     public static HashSet<Position> WaterPositions = new HashSet<Position>();
 

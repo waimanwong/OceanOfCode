@@ -7,7 +7,7 @@ using System.Text;
 using System.Collections;
 
 
- // LastEdited: 12/04/2020 16:50 
+ // LastEdited: 12/04/2020 23:40 
 
 
 
@@ -373,12 +373,12 @@ static class Map
 {
     public static int Height;
     public static int Width;
-    public static string[] Rows;
+    private static string[] Rows;
 
     private static char Water = '.';
     private static char Island = 'x';
 
-    public static Dictionary<int, HashSet<Position>> PossibleMovesByCount;
+    private static Dictionary<int, HashSet<Position>> PossibleMovesByCount;
 
     public static HashSet<Position> WaterPositions = new HashSet<Position>();
 
