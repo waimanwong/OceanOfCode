@@ -32,9 +32,7 @@ public class FloodFillEngine
         {
             var currentPosition = q.Dequeue();
 
-            var neighbors = Map.GetNeighborPositions(currentPosition)
-                .Where(x => Map.IsWater(x.Item1))
-                .ToList();
+            var neighbors = Map.GetWaterNeighborPositions(currentPosition);
 
             foreach (var neighbor in neighbors)
             {

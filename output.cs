@@ -7,7 +7,7 @@ using System.Text;
 using System.Collections;
 
 
- // LastEdited: 13/04/2020 0:39 
+ // LastEdited: 13/04/2020 0:48 
 
 
 
@@ -160,9 +160,7 @@ class AI
         }
 
         var myPosition = MySubmarine.Position;
-        var neighborWaterPositions = Map.GetNeighborPositions(myPosition)
-            .Where(x => Map.IsWater(x.Item1))
-            .ToList();
+        var neighborWaterPositions = Map.GetWaterNeighborPositions(myPosition);
         var placedMines = MySubmarine.GetPlacedMines();
 
         foreach (var item in neighborWaterPositions)
@@ -286,8 +284,7 @@ class AI
         var visitedPositions = MySubmarine.VisitedPositions;
 
         var possibleDirections = new List<Direction>();
-        var waterNeighborPositions = Map.GetNeighborPositions(myPosition)
-            .Where(x => Map.IsWater(x.Item1))
+        var waterNeighborPositions = Map.GetWaterNeighborPositions(myPosition)
             .Where(x => visitedPositions.Contains(x.Item1) == false);
 
         return waterNeighborPositions.ToList();
@@ -326,9 +323,7 @@ public class FloodFillEngine
         {
             var currentPosition = q.Dequeue();
 
-            var neighbors = Map.GetNeighborPositions(currentPosition)
-                .Where(x => Map.IsWater(x.Item1))
-                .ToList();
+            var neighbors = Map.GetWaterNeighborPositions(currentPosition);
 
             foreach (var neighbor in neighbors)
             {
@@ -428,42 +423,25 @@ static class Map
     }
 
     /// <summary>
-    /// Returns neighbors positions whether map or land
+    /// Returns water neighbors positions 
     /// </summary>
     /// <param name="fromPosition"></param>
     /// <returns></returns>
-    public static List<(Position, Direction)> GetNeighborPositions(Position fromPosition)
+    public static List<(Position, Direction)> GetWaterNeighborPositions(Position fromPosition)
     {
-        var neighborPositions = new List<(Position, Direction)>(4);
-        foreach (var direction in Player.AllDirections)
+        var positions = new List<(Position, Direction)>(4);
+
+        foreach (var directionDelta in Player.FourDirectionDeltas)
         {
-            switch (direction)
+            var dx = directionDelta.Value.Item1;
+            var dy = directionDelta.Value.Item2;
+            var waterNeighbor = fromPosition.Translate(dx, dy);
+            if(Map.IsWater(waterNeighbor))
             {
-                case Direction.E:
-                    if (fromPosition.x != Width - 1)
-                        neighborPositions.Add((new Position(fromPosition.x + 1, fromPosition.y), direction));
-                    break;
-
-                case Direction.N:
-                    if (fromPosition.y != 0)
-                        neighborPositions.Add((new Position(fromPosition.x, fromPosition.y - 1), direction));
-                    break;
-
-                case Direction.S:
-                    if (fromPosition.y != Height - 1)
-                        neighborPositions.Add((new Position(fromPosition.x, fromPosition.y + 1), direction));
-                    break;
-
-                case Direction.W:
-                    if (fromPosition.x != 0)
-                        neighborPositions.Add((new Position(fromPosition.x - 1, fromPosition.y), direction));
-                    break;
-
-                default:
-                    throw new NotImplementedException();
+                positions.Add( (waterNeighbor, directionDelta.Key) );
             }
         }
-        return neighborPositions;
+        return positions;
     }
 
     public static bool IsInMap(Position p)
@@ -609,7 +587,7 @@ class Player
     
     public static void Debug(string message)
     {
-        Console.Error.WriteLine(message);
+       // Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)

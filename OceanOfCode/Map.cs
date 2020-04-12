@@ -61,42 +61,25 @@ static class Map
     }
 
     /// <summary>
-    /// Returns neighbors positions whether map or land
+    /// Returns water neighbors positions 
     /// </summary>
     /// <param name="fromPosition"></param>
     /// <returns></returns>
-    public static List<(Position, Direction)> GetNeighborPositions(Position fromPosition)
+    public static List<(Position, Direction)> GetWaterNeighborPositions(Position fromPosition)
     {
-        var neighborPositions = new List<(Position, Direction)>(4);
-        foreach (var direction in Player.AllDirections)
+        var positions = new List<(Position, Direction)>(4);
+
+        foreach (var directionDelta in Player.FourDirectionDeltas)
         {
-            switch (direction)
+            var dx = directionDelta.Value.Item1;
+            var dy = directionDelta.Value.Item2;
+            var waterNeighbor = fromPosition.Translate(dx, dy);
+            if(Map.IsWater(waterNeighbor))
             {
-                case Direction.E:
-                    if (fromPosition.x != Width - 1)
-                        neighborPositions.Add((new Position(fromPosition.x + 1, fromPosition.y), direction));
-                    break;
-
-                case Direction.N:
-                    if (fromPosition.y != 0)
-                        neighborPositions.Add((new Position(fromPosition.x, fromPosition.y - 1), direction));
-                    break;
-
-                case Direction.S:
-                    if (fromPosition.y != Height - 1)
-                        neighborPositions.Add((new Position(fromPosition.x, fromPosition.y + 1), direction));
-                    break;
-
-                case Direction.W:
-                    if (fromPosition.x != 0)
-                        neighborPositions.Add((new Position(fromPosition.x - 1, fromPosition.y), direction));
-                    break;
-
-                default:
-                    throw new NotImplementedException();
+                positions.Add( (waterNeighbor, directionDelta.Key) );
             }
         }
-        return neighborPositions;
+        return positions;
     }
 
     public static bool IsInMap(Position p)

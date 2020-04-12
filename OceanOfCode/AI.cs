@@ -152,9 +152,7 @@ class AI
         }
 
         var myPosition = MySubmarine.Position;
-        var neighborWaterPositions = Map.GetNeighborPositions(myPosition)
-            .Where(x => Map.IsWater(x.Item1))
-            .ToList();
+        var neighborWaterPositions = Map.GetWaterNeighborPositions(myPosition);
         var placedMines = MySubmarine.GetPlacedMines();
 
         foreach (var item in neighborWaterPositions)
@@ -278,8 +276,7 @@ class AI
         var visitedPositions = MySubmarine.VisitedPositions;
 
         var possibleDirections = new List<Direction>();
-        var waterNeighborPositions = Map.GetNeighborPositions(myPosition)
-            .Where(x => Map.IsWater(x.Item1))
+        var waterNeighborPositions = Map.GetWaterNeighborPositions(myPosition)
             .Where(x => visitedPositions.Contains(x.Item1) == false);
 
         return waterNeighborPositions.ToList();
