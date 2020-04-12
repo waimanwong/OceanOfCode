@@ -6,11 +6,17 @@ using System.Text;
 public class TrackingService
 {
     private HashSet<Position> _possiblePositions = new HashSet<Position>();
+
     private int _health = -6;
+
     private MoveAction _lastMoveAction = null;
 
     public int Health => _health;
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="initialPositions">Positions where the submarine **can** be</param>
     public TrackingService(HashSet<Position> initialPositions)
     {
         _possiblePositions = initialPositions;
@@ -18,10 +24,31 @@ public class TrackingService
 
     public HashSet<Position> PossiblePositions => _possiblePositions.ToHashSet();
 
-    public void Track(MoveAction moveAction)
+    public void Track(Action submarineAction)
     {
-        _lastMoveAction = moveAction;
+        if (submarineAction is MoveAction)
+        {   
+            Track((MoveAction)submarineAction);
+        }
 
+        if (submarineAction is SurfaceAction)
+        {
+            Track((SurfaceAction)submarineAction);
+        }
+
+        if (submarineAction is TorpedoAction)
+        {
+            Track((TorpedoAction)submarineAction);
+        }
+
+        if (submarineAction is SilenceAction)
+        {
+            Track((SilenceAction)submarineAction);
+        }        
+    }
+
+    private void Track(MoveAction moveAction)
+    {
         var newPossiblePositions = new HashSet<Position>();
 
         foreach(var pos in _possiblePositions)
@@ -36,10 +63,11 @@ public class TrackingService
             }
         }
 
+        _lastMoveAction = moveAction;
         _possiblePositions = newPossiblePositions;
     }
 
-    public void Track(SurfaceAction surfaceAction)
+    private void Track(SurfaceAction surfaceAction)
     {
         var sector = surfaceAction.sector;
         
@@ -55,10 +83,9 @@ public class TrackingService
         }
 
         _health--;
-
     }
 
-    public void Track(TorpedoAction torpedoAction)
+    private void Track(TorpedoAction torpedoAction)
     {
         var torpedoPosition = torpedoAction.TargetPosition;
         
@@ -69,11 +96,11 @@ public class TrackingService
         _possiblePositions = newPositions;
     }
 
-    public void Track(SilenceAction silenceAction)
+    private void Track(SilenceAction silenceAction)
     {
         var newPossiblePositions = new HashSet<Position>();
 
-        var excludeDirection = GetOppositeDirection(_lastMoveAction.Direction);
+        var excludeDirection = Player.OppositeDirection[_lastMoveAction.Direction];
 
         var possibleDirections = Player.FourDirectionDeltas.Where(x => x.Key != excludeDirection).ToList();
 
@@ -101,11 +128,10 @@ public class TrackingService
         _possiblePositions = newPossiblePositions;
     }
 
-    public void Track(int newHealth, IEnumerable<Action> opponentActions)
+    public void Track(int newHealth, IEnumerable<IWeaponAction> weaponActions)
     {
         var lostHealtHCausedByWeapons = _health - newHealth;
-        var weaponActions = opponentActions.OfType<IWeaponAction>();
-
+        
         _health = newHealth;
 
         if(weaponActions.Count() == 0)
@@ -122,24 +148,9 @@ public class TrackingService
                     .Select(delta => new Position(weaponPosition.x + delta.Item1, weaponPosition.y + delta.Item2))
                     .ToList();
 
-            if (lostHealtHCausedByWeapons >= 2)
+            if(lostHealtHCausedByWeapons == 0)
             {
-                //Direct damage
-                newPositions.Add(weaponPosition);
-                lostHealtHCausedByWeapons -= 2;
-            }
-            else if( lostHealtHCausedByWeapons == 1)
-            {
-                foreach(var blastedPosition in blastedPositions)
-                {
-                    if (_possiblePositions.Contains(blastedPosition))
-                        newPositions.Add(blastedPosition);
-                }
-
-                lostHealtHCausedByWeapons--;
-            }
-            else
-            {
+                //No damage, remove possibilities
                 foreach(var position in _possiblePositions)
                 {
                     var positionIsNotBlasted = position != weaponPosition &&
@@ -150,10 +161,25 @@ public class TrackingService
                     }
                 }
             }
+            else if (lostHealtHCausedByWeapons == 2)
+            {
+                //Direct damage
+                if(_possiblePositions.Contains(weaponPosition))
+                    newPositions.Add(weaponPosition);
+            }
+            else 
+            {
+                foreach(var blastedPosition in blastedPositions)
+                {
+                    if (_possiblePositions.Contains(blastedPosition))
+                        newPositions.Add(blastedPosition);
+                }
+            }
         }
-
         
-        _possiblePositions = newPositions;
+        //in case algo is wrong, ignore it
+        if(newPositions.Count > 0)
+            _possiblePositions = newPositions;
     }
 
     public void Debug()
@@ -190,21 +216,6 @@ public class TrackingService
 
     }
 
-    private Direction GetOppositeDirection(Direction direction)
-    {
-        switch (direction)
-        {
-            case Direction.E:
-                return Direction.W;
-            case Direction.N:
-                return Direction.S;
-            case Direction.S:
-                return Direction.N;
-            case Direction.W:
-                return Direction.E;
-            default:
-                throw new NotSupportedException();
-        }
-    }
+    
 
 }

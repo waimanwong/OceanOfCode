@@ -34,6 +34,14 @@ class Player
         (-1, 1), (0,  1), (1,  1)
     };
 
+    public static Dictionary<Direction,Direction> OppositeDirection = new Dictionary<Direction, Direction>()
+    {
+        { Direction.E, Direction.W },
+        { Direction.W, Direction.E },
+        { Direction.N, Direction.S },
+        { Direction.S, Direction.N },
+    };
+    
     public static void Debug(string message)
     {
         //Console.Error.WriteLine(message);

@@ -133,6 +133,8 @@ class AI
 
     private bool TrySilence(out Direction direction, out int moves)
     {
+
+
         direction = Direction.E;
         moves = 0;
 
@@ -226,17 +228,17 @@ class AI
         var bestScore = 0;
         var bestMove = moves.First();
 
-        foreach(var possibleMove in moves)
+        foreach(var move in moves)
         {
             var trackingService = new TrackingService(estimationOfMyPositions);
-            var moveAction = new MoveAction(possibleMove.Item2, Power.UNKNOWN);
+            var moveAction = new MoveAction(move.Item2, Power.UNKNOWN);
             trackingService.Track(moveAction);
 
             var score = trackingService.PossiblePositions.Count;
             if(score > bestScore)
             {
                 bestScore = score;
-                bestMove = possibleMove;
+                bestMove = move;
             }
         }
 
@@ -250,9 +252,12 @@ class AI
             return Power.TORPEDO;
         }
 
-        if (_gameState.MineAvailable == false)
+        if(OpponentSubmarine.Health >= 2)
         {
-            return Power.MINE;
+            if (_gameState.MineAvailable == false)
+            {
+                return Power.MINE;
+            }
         }
 
         if (_gameState.SilenceAvailable == false)
@@ -265,7 +270,7 @@ class AI
             return Power.SONAR;
         }
 
-        return Power.MINE;
+        return Power.SILENCE;
     }
 
     private List<(Position, Direction)> GetPossibleDirectionsForMove(Position myPosition)
