@@ -52,9 +52,8 @@ public class TrackingService
 
         foreach(var pos in _possiblePositions)
         {
-            Map.TryGetNeighborPosition(pos, direction, out var newPos);
-
-            newPossiblePositions.Add(newPos);
+            if(Map.TryGetNeighborPosition(pos, direction, out var newPos))
+                newPossiblePositions.Add(newPos);
         }
 
         LastMoveAction = moveAction;

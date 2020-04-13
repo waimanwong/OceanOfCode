@@ -91,9 +91,8 @@ public static class MySubmarine
         var curPosition = Position;
         for (int i = 0; i < moves; i++)
         {
-            Map.TryGetNeighborPosition(curPosition, direction, out curPosition);
-
-            MoveTo(curPosition);
+            if (Map.TryGetNeighborPosition(curPosition, direction, out curPosition))
+                MoveTo(curPosition);
         }
 
         return new SilenceAction(direction, moves);

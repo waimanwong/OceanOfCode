@@ -7,7 +7,7 @@ using System.Text;
 using System.Collections;
 
 
- // LastEdited: 13/04/2020 15:43 
+ // LastEdited: 13/04/2020 16:17 
 
 
 
@@ -150,6 +150,8 @@ class AI
 
         var bestScore = -1;
         var bestSilenceMove = (Direction.E, 0, MySubmarine.Position);
+
+        Player.Debug($"{possibleSilenceMoves.Count} possibleSilenceMoves");
 
         foreach(var currentSilenceMove in possibleSilenceMoves)
         {
@@ -1125,9 +1127,8 @@ public static class MySubmarine
         var curPosition = Position;
         for (int i = 0; i < moves; i++)
         {
-            Map.TryGetNeighborPosition(curPosition, direction, out curPosition);
-
-            MoveTo(curPosition);
+            if (Map.TryGetNeighborPosition(curPosition, direction, out curPosition))
+                MoveTo(curPosition);
         }
 
         return new SilenceAction(direction, moves);
@@ -1210,9 +1211,8 @@ public class TrackingService
 
         foreach(var pos in _possiblePositions)
         {
-            Map.TryGetNeighborPosition(pos, direction, out var newPos);
-
-            newPossiblePositions.Add(newPos);
+            if(Map.TryGetNeighborPosition(pos, direction, out var newPos))
+                newPossiblePositions.Add(newPos);
         }
 
         LastMoveAction = moveAction;

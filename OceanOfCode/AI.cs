@@ -143,6 +143,8 @@ class AI
         var bestScore = -1;
         var bestSilenceMove = (Direction.E, 0, MySubmarine.Position);
 
+        Player.Debug($"{possibleSilenceMoves.Count} possibleSilenceMoves");
+
         foreach(var currentSilenceMove in possibleSilenceMoves)
         {
             var myPossiblePositions = MySubmarine.TrackingService.PossiblePositions;
