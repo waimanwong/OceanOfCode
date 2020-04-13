@@ -9,8 +9,6 @@ public struct Position
     public int x;
     public int y;
 
-    public static Position OutOfBOund = new Position(int.MinValue, int.MinValue);
-
     public static Position None = new Position(int.MaxValue, int.MaxValue);
 
     public Position(int x, int y)

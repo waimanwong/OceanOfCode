@@ -7,7 +7,7 @@ using System.Text;
 using System.Collections;
 
 
- // LastEdited: 13/04/2020 13:16 
+ // LastEdited: 13/04/2020 13:21 
 
 
 
@@ -605,8 +605,6 @@ public struct Position
 {
     public int x;
     public int y;
-
-    public static Position OutOfBOund = new Position(int.MinValue, int.MinValue);
 
     public static Position None = new Position(int.MaxValue, int.MaxValue);
 
