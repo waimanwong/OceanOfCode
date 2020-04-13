@@ -19,8 +19,8 @@ public class SilenceAction : Action
     {
         var possibleSilenceMoves = new List<(Direction, int, Position)>();
 
-        //No move
-        possibleSilenceMoves.Add((Direction.E, 0, startingPosition));
+        //Ignore No move
+        //possibleSilenceMoves.Add((Direction.E, 0, startingPosition));
 
         foreach(var neighbor in Map.GetNeighborPositions(startingPosition))
         {

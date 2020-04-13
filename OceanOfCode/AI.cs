@@ -133,7 +133,8 @@ class AI
         direction = Direction.E;
         moves = 0;
 
-        if(_gameState.SilenceAvailable == false)
+        if(_gameState.SilenceAvailable == false || 
+            MySubmarine.TrackingService.LostHealth == 0 )
         {
             return false;
         }
@@ -147,6 +148,8 @@ class AI
 
         foreach(var currentSilenceMove in possibleSilenceMoves)
         {
+            Player.Debug($"Evaluate {currentSilenceMove}");
+
             var myPossiblePositions = MySubmarine.TrackingService.PossiblePositions;
             var lastMoveAction = MySubmarine.TrackingService.LastMoveAction;
             var trackingService = new TrackingService(myPossiblePositions, lastMoveAction);
@@ -159,13 +162,15 @@ class AI
             {
                 bestScore = score;
                 bestSilenceMove = currentSilenceMove;
+             
+                Player.Debug($"bestSilenceMove: {bestSilenceMove} ({score})");
             }
         }
 
         direction = bestSilenceMove.Item1;
         moves = bestSilenceMove.Item2;
 
-        return true;
+        return true;       
     }
 
     private bool TrySelectMinePosition(out Position position, out Direction direction)
@@ -319,9 +324,15 @@ class AI
 
     private Power SelectPowerToCharge()
     {
+        
         if (_gameState.TorpedoAvailable == false)
         {
             return Power.TORPEDO;
+        }
+
+        if (_gameState.SilenceAvailable == false)
+        {
+            return Power.SILENCE;
         }
 
         if(OpponentSubmarine.Health >= 2)
@@ -332,10 +343,6 @@ class AI
             }
         }
 
-        if (_gameState.SilenceAvailable == false)
-        {
-            return Power.SILENCE;
-        }
 
         // if (_gameState.SonarAvailable == false)
         // {
