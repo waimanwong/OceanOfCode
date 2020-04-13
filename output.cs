@@ -7,7 +7,7 @@ using System.Text;
 using System.Collections;
 
 
- // LastEdited: 13/04/2020 12:43 
+ // LastEdited: 13/04/2020 13:16 
 
 
 
@@ -684,7 +684,7 @@ class Player
     
     public static void Debug(string message)
     {
-        //Console.Error.WriteLine(message);
+        Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)
