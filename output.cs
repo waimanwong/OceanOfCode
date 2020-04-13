@@ -7,7 +7,7 @@ using System.Text;
 using System.Collections;
 
 
- // LastEdited: 13/04/2020 11:26 
+ // LastEdited: 13/04/2020 12:43 
 
 
 
@@ -145,7 +145,61 @@ class AI
         direction = Direction.E;
         moves = 0;
 
-        return _gameState.SilenceAvailable;
+        if(_gameState.SilenceAvailable == false)
+        {
+            return false;
+        }
+
+        List<(Direction,int)> possibleSilenceMoves = new List<(Direction, int)>();
+        possibleSilenceMoves.Add((Direction.E, 0));
+
+        foreach(var d in  Player.FourDirectionDeltas)
+        {
+            var curPos = MySubmarine.Position;
+            var curDirection = d.Key;
+            for(int move = 1; move <= 4; move++)
+            {
+                var deltaX = d.Value.Item1;
+                var deltaY = d.Value.Item2;
+                curPos = curPos.Translate(deltaX,deltaY);
+
+                var notYetVisited = MySubmarine.VisitedPositions.Contains(curPos) == false;
+
+                if(Map.IsWater(curPos) && notYetVisited)
+                {
+                    possibleSilenceMoves.Add((curDirection, move));
+                }
+                else
+                {
+                    //Can not go here and further, stop going in this direction
+                    break;
+                }
+            }
+        }
+
+        var bestScore = -1;
+        var bestSilenceMove = (Direction.E, 0);
+
+        foreach(var currentSilenceMove in possibleSilenceMoves)
+        {
+            var myPossiblePositions = MySubmarine.TrackingService.PossiblePositions;
+            var trackingService = new TrackingService(myPossiblePositions);
+
+            trackingService.Track(new SilenceAction(currentSilenceMove.Item1, currentSilenceMove.Item2));
+
+            var score = trackingService.PossiblePositions.Count;
+
+            if(score > bestScore)
+            {
+                bestScore = score;
+                bestSilenceMove = currentSilenceMove;
+            }
+        }
+
+        direction = bestSilenceMove.Item1;
+        moves = bestSilenceMove.Item2;
+
+        return true;
     }
 
     private bool TrySelectMinePosition(out Position position, out Direction direction)
@@ -1185,9 +1239,13 @@ public class TrackingService
     {
         var newPossiblePositions = new HashSet<Position>();
 
-        var excludeDirection = Player.OppositeDirection[_lastMoveAction.Direction];
+        var possibleDirections = Player.FourDirectionDeltas.ToList();
 
-        var possibleDirections = Player.FourDirectionDeltas.Where(x => x.Key != excludeDirection).ToList();
+        if(_lastMoveAction != null)
+        {
+            var excludeDirection = Player.OppositeDirection[_lastMoveAction.Direction];
+            possibleDirections = possibleDirections.Where(x => x.Key != excludeDirection).ToList();
+        }
 
         foreach (var pos in _possiblePositions)
         {

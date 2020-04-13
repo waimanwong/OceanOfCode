@@ -99,9 +99,13 @@ public class TrackingService
     {
         var newPossiblePositions = new HashSet<Position>();
 
-        var excludeDirection = Player.OppositeDirection[_lastMoveAction.Direction];
+        var possibleDirections = Player.FourDirectionDeltas.ToList();
 
-        var possibleDirections = Player.FourDirectionDeltas.Where(x => x.Key != excludeDirection).ToList();
+        if(_lastMoveAction != null)
+        {
+            var excludeDirection = Player.OppositeDirection[_lastMoveAction.Direction];
+            possibleDirections = possibleDirections.Where(x => x.Key != excludeDirection).ToList();
+        }
 
         foreach (var pos in _possiblePositions)
         {
