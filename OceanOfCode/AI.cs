@@ -77,7 +77,7 @@ class AI
             }
         }
 
-        return torpedoPosition != Position.None;
+        return torpedoPosition .IsNot(Position.None);
     }
 
     private bool TryTriggerMine(out Position bestMinePosition)
@@ -115,7 +115,7 @@ class AI
             }
         }
 
-        return bestMinePosition != Position.None;
+        return bestMinePosition.IsNot( Position.None);
     }
 
     private HashSet<Position> GetBlastedPositions(Position weaponPosition)
@@ -226,7 +226,7 @@ class AI
             }
         }
 
-        return position != Position.None;
+        return position.IsNot(Position.None);
     }
 
     private Action SelectMoveAction()

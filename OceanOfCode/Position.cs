@@ -17,14 +17,9 @@ public struct Position
         this.y = y;
     }
 
-    public static bool operator ==(Position p1, Position p2)
+    public bool IsNot(Position otherPosition)
     {
-        return p1.Equals(p2);
-    }
-
-    public static bool operator !=(Position p1, Position p2)
-    {
-        return !p1.Equals(p2);
+        return otherPosition.x != x || otherPosition.y != y;
     }
 
     public int DistanceTo(Position p)

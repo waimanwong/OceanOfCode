@@ -1,7 +1,6 @@
 ﻿
 public class TorpedoAction : Action, IWeaponAction
 {
-    public static int Range = 4;
     public Position TargetPosition { get; }
 
     public TorpedoAction(Position position)

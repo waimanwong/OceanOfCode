@@ -155,7 +155,7 @@ public class TrackingService
                 //No damage, remove possibilities
                 foreach(var position in _possiblePositions)
                 {
-                    var positionIsNotBlasted = position != weaponPosition &&
+                    var positionIsNotBlasted = position.IsNot( weaponPosition) &&
                             blastedPositions.Contains(position) == false;
                     if(positionIsNotBlasted)
                     {

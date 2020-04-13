@@ -7,7 +7,7 @@ using System.Text;
 using System.Collections;
 
 
- // LastEdited: 13/04/2020 13:21 
+ // LastEdited: 13/04/2020 13:30 
 
 
 
@@ -85,7 +85,7 @@ class AI
             }
         }
 
-        return torpedoPosition != Position.None;
+        return torpedoPosition .IsNot(Position.None);
     }
 
     private bool TryTriggerMine(out Position bestMinePosition)
@@ -123,7 +123,7 @@ class AI
             }
         }
 
-        return bestMinePosition != Position.None;
+        return bestMinePosition.IsNot( Position.None);
     }
 
     private HashSet<Position> GetBlastedPositions(Position weaponPosition)
@@ -234,7 +234,7 @@ class AI
             }
         }
 
-        return position != Position.None;
+        return position.IsNot(Position.None);
     }
 
     private Action SelectMoveAction()
@@ -468,8 +468,7 @@ static class Map
     private static string[] Rows;
 
     private static char Water = '.';
-    private static char Island = 'x';
-
+    
     public static HashSet<Position> WaterPositions = new HashSet<Position>();
 
     public static void InitializeMap(int height, int width, string[] rows)
@@ -614,14 +613,9 @@ public struct Position
         this.y = y;
     }
 
-    public static bool operator ==(Position p1, Position p2)
+    public bool IsNot(Position otherPosition)
     {
-        return p1.Equals(p2);
-    }
-
-    public static bool operator !=(Position p1, Position p2)
-    {
-        return !p1.Equals(p2);
+        return otherPosition.x != x || otherPosition.y != y;
     }
 
     public int DistanceTo(Position p)
@@ -682,7 +676,7 @@ class Player
     
     public static void Debug(string message)
     {
-        Console.Error.WriteLine(message);
+        //Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)
@@ -966,7 +960,6 @@ public class SurfaceAction : Action
 
 public class TorpedoAction : Action, IWeaponAction
 {
-    public static int Range = 4;
     public Position TargetPosition { get; }
 
     public TorpedoAction(Position position)
@@ -1293,7 +1286,7 @@ public class TrackingService
                 //No damage, remove possibilities
                 foreach(var position in _possiblePositions)
                 {
-                    var positionIsNotBlasted = position != weaponPosition &&
+                    var positionIsNotBlasted = position.IsNot( weaponPosition) &&
                             blastedPositions.Contains(position) == false;
                     if(positionIsNotBlasted)
                     {

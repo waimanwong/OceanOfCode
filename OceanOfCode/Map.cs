@@ -9,8 +9,7 @@ static class Map
     private static string[] Rows;
 
     private static char Water = '.';
-    private static char Island = 'x';
-
+    
     public static HashSet<Position> WaterPositions = new HashSet<Position>();
 
     public static void InitializeMap(int height, int width, string[] rows)
