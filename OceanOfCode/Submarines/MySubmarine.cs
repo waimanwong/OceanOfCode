@@ -5,7 +5,7 @@ public static class MySubmarine
 {
     public static Position Position;
 
-    public readonly static TrackingService TrackingService = new TrackingService(Map.WaterPositions);
+    public readonly static TrackingService TrackingService = new TrackingService(Map.WaterPositions, null);
 
     private static readonly HashSet<Position> _visitedPositions = new HashSet<Position>();
 
@@ -34,29 +34,7 @@ public static class MySubmarine
     {
         foreach(var action in actions)
         {
-            if (action is MoveAction)
-            {
-                TrackingService.Track((MoveAction)action);
-                return;
-            }
-
-            if (action is SurfaceAction)
-            {
-                TrackingService.Track((SurfaceAction)action);
-                return;
-            }
-
-            if (action is TorpedoAction)
-            {
-                TrackingService.Track((TorpedoAction)action);
-                return;
-            }
-
-            if (action is SilenceAction)
-            {
-                TrackingService.Track((SilenceAction)action);
-                return;
-            }
+            TrackingService.Track(action);
         }
     }
 
@@ -110,10 +88,12 @@ public static class MySubmarine
 
     public static SilenceAction Silence(Direction direction, int moves)
     {
-        var delta = Player.FourDirectionDeltas[direction];
+        var curPosition = Position;
         for (int i = 0; i < moves; i++)
         {
-            MoveTo(Position.Translate(delta.Item1, delta.Item2));
+            Map.TryGetNeighborPosition(curPosition, direction, out curPosition);
+
+            MoveTo(curPosition);
         }
 
         return new SilenceAction(direction, moves);

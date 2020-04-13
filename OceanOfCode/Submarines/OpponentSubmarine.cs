@@ -4,7 +4,7 @@ using System.Linq;
 public static class OpponentSubmarine
 {
     
-    private static TrackingService _trackingService = new TrackingService(Map.WaterPositions);
+    private static TrackingService _trackingService = new TrackingService(Map.WaterPositions, null);
 
     public static HashSet<Position> PossiblePositions => _trackingService.PossiblePositions;
 

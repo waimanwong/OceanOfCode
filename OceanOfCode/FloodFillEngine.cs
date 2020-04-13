@@ -32,16 +32,16 @@ public class FloodFillEngine
         {
             var currentPosition = q.Dequeue();
 
-            var neighbors = Map.GetWaterNeighborPositions(currentPosition);
+            var neighborPositions = Map.GetNeighborPositions(currentPosition).Values;
 
-            foreach (var neighbor in neighbors)
+            foreach (var neighborPosition in neighborPositions)
             {
-                if (_alreadyVisitedPositions.Contains(neighbor.Item1) == false)
+                if (_alreadyVisitedPositions.Contains(neighborPosition) == false)
                 {
-                    if (_remainingPositionsToVisit.Contains(neighbor.Item1) == false)
+                    if (_remainingPositionsToVisit.Contains(neighborPosition) == false)
                     {
-                        _remainingPositionsToVisit.Add(neighbor.Item1);
-                        q.Enqueue(neighbor.Item1);
+                        _remainingPositionsToVisit.Add(neighborPosition);
+                        q.Enqueue(neighborPosition);
                     }
                 }
 

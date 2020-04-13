@@ -16,9 +16,6 @@ class AI
     {
         var actions = new List<Action>();
 
-        var stealthScore = $"{MySubmarine.PossiblePositions.Count} - {OpponentSubmarine.PossiblePositions.Count}";
-        actions.Add(new MessageAction(stealthScore));
-
         var selectedActions = SelectPowerActions();
         actions.AddRange(selectedActions);
 
@@ -118,17 +115,16 @@ class AI
         return bestMinePosition.IsNot( Position.None);
     }
 
+    /// <summary>
+    /// weapon target position and neighbor positions
+    /// </summary>
+    /// <param name="weaponPosition"></param>
+    /// <returns></returns>
     private HashSet<Position> GetBlastedPositions(Position weaponPosition)
     {
         var blastedPositions = new List<Position>();
-
         blastedPositions.Add(weaponPosition);
-
-        blastedPositions.AddRange( Player.EightDirectionDeltas
-            .Select(delta => new Position(weaponPosition.x + delta.Item1, weaponPosition.y + delta.Item2))
-            .Where(p => Map.IsWater(p))
-            .ToList());
-
+        blastedPositions.AddRange(Map.NeighborBlastedPositions[weaponPosition]);
         return blastedPositions.ToHashSet();
     }
 
@@ -142,40 +138,16 @@ class AI
             return false;
         }
 
-        List<(Direction,int)> possibleSilenceMoves = new List<(Direction, int)>();
-        possibleSilenceMoves.Add((Direction.E, 0));
-
-        foreach(var d in  Player.FourDirectionDeltas)
-        {
-            var curPos = MySubmarine.Position;
-            var curDirection = d.Key;
-            for(int move = 1; move <= 4; move++)
-            {
-                var deltaX = d.Value.Item1;
-                var deltaY = d.Value.Item2;
-                curPos = curPos.Translate(deltaX,deltaY);
-
-                var notYetVisited = MySubmarine.VisitedPositions.Contains(curPos) == false;
-
-                if(Map.IsWater(curPos) && notYetVisited)
-                {
-                    possibleSilenceMoves.Add((curDirection, move));
-                }
-                else
-                {
-                    //Can not go here and further, stop going in this direction
-                    break;
-                }
-            }
-        }
+        var possibleSilenceMoves = SilenceAction.ComputeSilenceActions(MySubmarine.Position, MySubmarine.VisitedPositions);
 
         var bestScore = -1;
-        var bestSilenceMove = (Direction.E, 0);
+        var bestSilenceMove = (Direction.E, 0, MySubmarine.Position);
 
         foreach(var currentSilenceMove in possibleSilenceMoves)
         {
             var myPossiblePositions = MySubmarine.TrackingService.PossiblePositions;
-            var trackingService = new TrackingService(myPossiblePositions);
+            var lastMoveAction = MySubmarine.TrackingService.LastMoveAction;
+            var trackingService = new TrackingService(myPossiblePositions, lastMoveAction);
 
             trackingService.Track(new SilenceAction(currentSilenceMove.Item1, currentSilenceMove.Item2));
 
@@ -205,13 +177,13 @@ class AI
         }
 
         var myPosition = MySubmarine.Position;
-        var neighborWaterPositions = Map.GetWaterNeighborPositions(myPosition);
+        var neighborWaterPositions = Map.GetNeighborPositions(myPosition);
         var placedMines = MySubmarine.GetPlacedMines();
 
         foreach (var item in neighborWaterPositions)
         {
-            var possibleMinePosition = item.Item1;
-            var possibleMineDirection = item.Item2;
+            var possibleMinePosition = item.Value;
+            var possibleMineDirection = item.Key;
 
             if (MySubmarine.HasPlacedMineAt(possibleMinePosition) == false)
             {
@@ -275,6 +247,7 @@ class AI
             return (moves.Single().Item1, moves.Single().Item2);
 
         var estimationOfMyPositions = MySubmarine.TrackingService.PossiblePositions;
+        var lastMoveAction = MySubmarine.TrackingService.LastMoveAction;
 
         var bestScore = 0;
         var bestMove = moves.First();
@@ -282,7 +255,7 @@ class AI
 
         foreach(var move in moves)
         {
-            var score = ScoreMove(move, MySubmarine.VisitedPositions, estimationOfMyPositions, iterations);
+            var score = ScoreMove(move, MySubmarine.VisitedPositions, estimationOfMyPositions, lastMoveAction, iterations);
 
             if(score > bestScore)
             {
@@ -298,9 +271,10 @@ class AI
         Tuple<Position, Direction> move,
         HashSet<Position> visitedPositions, 
         HashSet<Position> estimationOfMyPositions, 
+        MoveAction lastMoveAction,
         int iterations)
     {
-        var trackingService = new TrackingService(estimationOfMyPositions);
+        var trackingService = new TrackingService(estimationOfMyPositions, lastMoveAction);
         var moveAction = new MoveAction(move.Item2, Power.UNKNOWN);
         trackingService.Track(moveAction);
 
@@ -314,20 +288,21 @@ class AI
         visitedPositions.Add(curPosition);
         
         var bestScore = -1;
+        var neighborPositions = Map.GetNeighborPositions(curPosition);
 
-        foreach(var directionDelta in Player.FourDirectionDeltas)
+        foreach(var neighbor in neighborPositions)
         {
-            var deltaX = directionDelta.Value.Item1;
-            var deltaY = directionDelta.Value.Item2;
-            var newDirection = directionDelta.Key;
-            var newPos = curPosition.Translate(deltaX, deltaY);
-            if(Map.IsWater(newPos) && visitedPositions.Contains(newPos) == false)
+            var newDirection = neighbor.Key;
+            var newPos = neighbor.Value;
+        
+            if(visitedPositions.Contains(newPos) == false)
             {
                 var newEstimationOfMyPositions = trackingService.PossiblePositions;
                 var score = ScoreMove(
                     new Tuple<Position, Direction>(newPos, newDirection), 
                     visitedPositions.ToHashSet(),
                     trackingService.PossiblePositions.ToHashSet(),
+                    lastMoveAction,
                     iterations - 1);
 
                 if(score > bestScore)
@@ -372,11 +347,10 @@ class AI
     {
         var visitedPositions = MySubmarine.VisitedPositions;
 
-        var possibleDirections = new List<Direction>();
-        var waterNeighborPositions = Map.GetWaterNeighborPositions(myPosition)
-            .Where(x => visitedPositions.Contains(x.Item1) == false);
-
-        return waterNeighborPositions.ToList();
+        return Map.GetNeighborPositions(myPosition)
+            .Where(x => visitedPositions.Contains(x.Value) == false)
+            .Select( kvp => (kvp.Value, kvp.Key))
+            .ToList();
     }
 
 }

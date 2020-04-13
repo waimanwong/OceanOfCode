@@ -7,7 +7,7 @@ using System.Text;
 using System.Collections;
 
 
- // LastEdited: 13/04/2020 13:35 
+ // LastEdited: 13/04/2020 15:43 
 
 
 
@@ -23,9 +23,6 @@ class AI
     public List<Action> ComputeActions()
     {
         var actions = new List<Action>();
-
-        var stealthScore = $"{MySubmarine.PossiblePositions.Count} - {OpponentSubmarine.PossiblePositions.Count}";
-        actions.Add(new MessageAction(stealthScore));
 
         var selectedActions = SelectPowerActions();
         actions.AddRange(selectedActions);
@@ -126,17 +123,16 @@ class AI
         return bestMinePosition.IsNot( Position.None);
     }
 
+    /// <summary>
+    /// weapon target position and neighbor positions
+    /// </summary>
+    /// <param name="weaponPosition"></param>
+    /// <returns></returns>
     private HashSet<Position> GetBlastedPositions(Position weaponPosition)
     {
         var blastedPositions = new List<Position>();
-
         blastedPositions.Add(weaponPosition);
-
-        blastedPositions.AddRange( Player.EightDirectionDeltas
-            .Select(delta => new Position(weaponPosition.x + delta.Item1, weaponPosition.y + delta.Item2))
-            .Where(p => Map.IsWater(p))
-            .ToList());
-
+        blastedPositions.AddRange(Map.NeighborBlastedPositions[weaponPosition]);
         return blastedPositions.ToHashSet();
     }
 
@@ -150,40 +146,16 @@ class AI
             return false;
         }
 
-        List<(Direction,int)> possibleSilenceMoves = new List<(Direction, int)>();
-        possibleSilenceMoves.Add((Direction.E, 0));
-
-        foreach(var d in  Player.FourDirectionDeltas)
-        {
-            var curPos = MySubmarine.Position;
-            var curDirection = d.Key;
-            for(int move = 1; move <= 4; move++)
-            {
-                var deltaX = d.Value.Item1;
-                var deltaY = d.Value.Item2;
-                curPos = curPos.Translate(deltaX,deltaY);
-
-                var notYetVisited = MySubmarine.VisitedPositions.Contains(curPos) == false;
-
-                if(Map.IsWater(curPos) && notYetVisited)
-                {
-                    possibleSilenceMoves.Add((curDirection, move));
-                }
-                else
-                {
-                    //Can not go here and further, stop going in this direction
-                    break;
-                }
-            }
-        }
+        var possibleSilenceMoves = SilenceAction.ComputeSilenceActions(MySubmarine.Position, MySubmarine.VisitedPositions);
 
         var bestScore = -1;
-        var bestSilenceMove = (Direction.E, 0);
+        var bestSilenceMove = (Direction.E, 0, MySubmarine.Position);
 
         foreach(var currentSilenceMove in possibleSilenceMoves)
         {
             var myPossiblePositions = MySubmarine.TrackingService.PossiblePositions;
-            var trackingService = new TrackingService(myPossiblePositions);
+            var lastMoveAction = MySubmarine.TrackingService.LastMoveAction;
+            var trackingService = new TrackingService(myPossiblePositions, lastMoveAction);
 
             trackingService.Track(new SilenceAction(currentSilenceMove.Item1, currentSilenceMove.Item2));
 
@@ -213,13 +185,13 @@ class AI
         }
 
         var myPosition = MySubmarine.Position;
-        var neighborWaterPositions = Map.GetWaterNeighborPositions(myPosition);
+        var neighborWaterPositions = Map.GetNeighborPositions(myPosition);
         var placedMines = MySubmarine.GetPlacedMines();
 
         foreach (var item in neighborWaterPositions)
         {
-            var possibleMinePosition = item.Item1;
-            var possibleMineDirection = item.Item2;
+            var possibleMinePosition = item.Value;
+            var possibleMineDirection = item.Key;
 
             if (MySubmarine.HasPlacedMineAt(possibleMinePosition) == false)
             {
@@ -283,6 +255,7 @@ class AI
             return (moves.Single().Item1, moves.Single().Item2);
 
         var estimationOfMyPositions = MySubmarine.TrackingService.PossiblePositions;
+        var lastMoveAction = MySubmarine.TrackingService.LastMoveAction;
 
         var bestScore = 0;
         var bestMove = moves.First();
@@ -290,7 +263,7 @@ class AI
 
         foreach(var move in moves)
         {
-            var score = ScoreMove(move, MySubmarine.VisitedPositions, estimationOfMyPositions, iterations);
+            var score = ScoreMove(move, MySubmarine.VisitedPositions, estimationOfMyPositions, lastMoveAction, iterations);
 
             if(score > bestScore)
             {
@@ -306,9 +279,10 @@ class AI
         Tuple<Position, Direction> move,
         HashSet<Position> visitedPositions, 
         HashSet<Position> estimationOfMyPositions, 
+        MoveAction lastMoveAction,
         int iterations)
     {
-        var trackingService = new TrackingService(estimationOfMyPositions);
+        var trackingService = new TrackingService(estimationOfMyPositions, lastMoveAction);
         var moveAction = new MoveAction(move.Item2, Power.UNKNOWN);
         trackingService.Track(moveAction);
 
@@ -322,20 +296,21 @@ class AI
         visitedPositions.Add(curPosition);
         
         var bestScore = -1;
+        var neighborPositions = Map.GetNeighborPositions(curPosition);
 
-        foreach(var directionDelta in Player.FourDirectionDeltas)
+        foreach(var neighbor in neighborPositions)
         {
-            var deltaX = directionDelta.Value.Item1;
-            var deltaY = directionDelta.Value.Item2;
-            var newDirection = directionDelta.Key;
-            var newPos = curPosition.Translate(deltaX, deltaY);
-            if(Map.IsWater(newPos) && visitedPositions.Contains(newPos) == false)
+            var newDirection = neighbor.Key;
+            var newPos = neighbor.Value;
+        
+            if(visitedPositions.Contains(newPos) == false)
             {
                 var newEstimationOfMyPositions = trackingService.PossiblePositions;
                 var score = ScoreMove(
                     new Tuple<Position, Direction>(newPos, newDirection), 
                     visitedPositions.ToHashSet(),
                     trackingService.PossiblePositions.ToHashSet(),
+                    lastMoveAction,
                     iterations - 1);
 
                 if(score > bestScore)
@@ -380,11 +355,10 @@ class AI
     {
         var visitedPositions = MySubmarine.VisitedPositions;
 
-        var possibleDirections = new List<Direction>();
-        var waterNeighborPositions = Map.GetWaterNeighborPositions(myPosition)
-            .Where(x => visitedPositions.Contains(x.Item1) == false);
-
-        return waterNeighborPositions.ToList();
+        return Map.GetNeighborPositions(myPosition)
+            .Where(x => visitedPositions.Contains(x.Value) == false)
+            .Select( kvp => (kvp.Value, kvp.Key))
+            .ToList();
     }
 
 }
@@ -420,16 +394,16 @@ public class FloodFillEngine
         {
             var currentPosition = q.Dequeue();
 
-            var neighbors = Map.GetWaterNeighborPositions(currentPosition);
+            var neighborPositions = Map.GetNeighborPositions(currentPosition).Values;
 
-            foreach (var neighbor in neighbors)
+            foreach (var neighborPosition in neighborPositions)
             {
-                if (_alreadyVisitedPositions.Contains(neighbor.Item1) == false)
+                if (_alreadyVisitedPositions.Contains(neighborPosition) == false)
                 {
-                    if (_remainingPositionsToVisit.Contains(neighbor.Item1) == false)
+                    if (_remainingPositionsToVisit.Contains(neighborPosition) == false)
                     {
-                        _remainingPositionsToVisit.Add(neighbor.Item1);
-                        q.Enqueue(neighbor.Item1);
+                        _remainingPositionsToVisit.Add(neighborPosition);
+                        q.Enqueue(neighborPosition);
                     }
                 }
 
@@ -463,13 +437,29 @@ class GameState
 
 static class Map
 {
-    public static int Height;
-    public static int Width;
+    public static int Height, Width;
     private static string[] Rows;
 
     private static char Water = '.';
-    
-    public static HashSet<Position> WaterPositions = new HashSet<Position>();
+    private static (int, int)[] EightDirectionVectors = new (int, int)[]
+    {
+        (-1,-1), (0, -1), (1, -1),
+        (-1, 0),          (1,  0),
+        (-1, 1), (0,  1), (1,  1)
+    };
+    private static Dictionary<Direction, (int, int)> FourDirectionDeltas = new Dictionary<Direction, (int, int)>
+    {
+        {  Direction.S, (0 ,  1) },
+        {  Direction.W, (-1,  0) },
+        {  Direction.E, (1 ,  0) },
+        {  Direction.N, (0 , -1) },
+    };
+
+    public static HashSet<Position> WaterPositions;
+
+    public static IDictionary<Position, List<Position>> NeighborBlastedPositions;
+
+    private static IDictionary<Position, Dictionary<Direction, Position>> NeighborWaterPositions;
 
     public static void InitializeMap(int height, int width, string[] rows)
     {
@@ -477,6 +467,10 @@ static class Map
         Width = width;
         Rows = rows;
 
+        WaterPositions = new HashSet<Position>();
+        NeighborBlastedPositions = new Dictionary<Position, List<Position>>();
+        NeighborWaterPositions = new Dictionary<Position, Dictionary<Direction, Position>>();
+        
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
@@ -486,9 +480,21 @@ static class Map
                 if (IsWater(position))
                 {
                     WaterPositions.Add(position);
+                    NeighborBlastedPositions[position] = GetBlastedNeighborPositions(position);
+                    NeighborWaterPositions[position] = GetNeighborWaterPositions(position);
                 }
             }
         }
+    }
+    
+    public static IDictionary<Direction, Position> GetNeighborPositions(Position p)
+    {
+        return NeighborWaterPositions[p];
+    }
+
+    public static bool TryGetNeighborPosition(Position position, Direction d, out Position neighborPosition)
+    {
+        return NeighborWaterPositions[position].TryGetValue(d, out neighborPosition);       
     }
 
     public static Position GetRandomWaterPosition()
@@ -505,39 +511,6 @@ static class Map
         }
 
         return position;
-    }
-
-    public static bool IsWater(Position coord)
-    {
-        var x = coord.x;
-        var y = coord.y;
-
-        return 
-            (0 <= x && x < Width) && 
-            (0 <= y && y < Height) &&
-            Rows[y][x] == Water;
-    }
-
-    /// <summary>
-    /// Returns water neighbors positions 
-    /// </summary>
-    /// <param name="fromPosition"></param>
-    /// <returns></returns>
-    public static List<(Position, Direction)> GetWaterNeighborPositions(Position fromPosition)
-    {
-        var positions = new List<(Position, Direction)>(4);
-
-        foreach (var directionDelta in Player.FourDirectionDeltas)
-        {
-            var dx = directionDelta.Value.Item1;
-            var dy = directionDelta.Value.Item2;
-            var waterNeighbor = fromPosition.Translate(dx, dy);
-            if(Map.IsWater(waterNeighbor))
-            {
-                positions.Add( (waterNeighbor, directionDelta.Key) );
-            }
-        }
-        return positions;
     }
 
     public static HashSet<Position> GetSectorWaterPositions(int sector)
@@ -557,6 +530,55 @@ static class Map
             }
         }
         return waterSectorPositions;
+    }
+
+    public static bool IsWater(Position coord)
+    {
+        var x = coord.x;
+        var y = coord.y;
+
+        return 
+            (0 <= x && x < Width) && 
+            (0 <= y && y < Height) &&
+            Rows[y][x] == Water;
+    }
+
+    private static List<Position> GetBlastedNeighborPositions(Position position)
+    {
+        var neighborBlastedPositions = new List<Position>(8);
+
+        foreach(var vector in Map.EightDirectionVectors)
+        {
+            var neighbor = position.Translate(vector.Item1, vector.Item2);
+            if(Map.IsWater(neighbor))
+            {
+                neighborBlastedPositions.Add(neighbor);
+            }
+        }
+
+        return neighborBlastedPositions;
+    }
+
+    /// <summary>
+    /// Returns water neighbors positions 
+    /// </summary>
+    /// <param name="fromPosition"></param>
+    /// <returns></returns>
+    private static Dictionary<Direction, Position> GetNeighborWaterPositions(Position fromPosition)
+    {
+        var positions = new Dictionary<Direction, Position>(4);
+
+        foreach (var directionDelta in FourDirectionDeltas)
+        {
+            var dx = directionDelta.Value.Item1;
+            var dy = directionDelta.Value.Item2;
+            var waterNeighbor = fromPosition.Translate(dx, dy);
+            if(Map.IsWater(waterNeighbor))
+            {
+                positions[directionDelta.Key] = waterNeighbor;
+            }
+        }
+        return positions;
     }
 
     private static (Position, Position) GetSectorBounds(int sector)
@@ -645,21 +667,6 @@ public enum Power { UNKNOWN, TORPEDO, SILENCE, SONAR, MINE }
 class Player
 {
     
-    public static Dictionary<Direction, (int, int)> FourDirectionDeltas = new Dictionary<Direction, (int, int)>
-    {
-        {  Direction.S, (0 ,  1) },
-        {  Direction.W, (-1,  0) },
-        {  Direction.E, (1 ,  0) },
-        {  Direction.N, (0 , -1) },
-    };
-
-    public static (int, int)[] EightDirectionDeltas = new (int, int)[]
-    {
-        (-1,-1), (0, -1), (1, -1),
-        (-1, 0),          (1,  0),
-        (-1, 1), (0,  1), (1,  1)
-    };
-
     public static Dictionary<Direction,Direction> OppositeDirection = new Dictionary<Direction, Direction>()
     {
         { Direction.E, Direction.W },
@@ -670,7 +677,7 @@ class Player
     
     public static void Debug(string message)
     {
-        Console.Error.WriteLine(message);
+        //Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)
@@ -734,7 +741,8 @@ class Player
             MySubmarine.UpdateState(myLife, mylastActions, opponentActions);
             MySubmarine.Debug();
             
-
+            var stealthScore = $"{MySubmarine.PossiblePositions.Count} - {OpponentSubmarine.PossiblePositions.Count}";
+        
             var gameState = new GameState(torpedoCooldown, sonarCooldown, silenceCooldown, mineCooldown);
             var ai = new AI(gameState);
             var actions = ai.ComputeActions();
@@ -743,9 +751,8 @@ class Player
             
             mylastActions = actions;
 
-            var txtActions = Action.ToText(actions);
-
-            Player.Debug($"{stopwatch.ElapsedMilliseconds - start} ms");
+            var messageAction = new MessageAction($"{stealthScore} ({stopwatch.ElapsedMilliseconds - start}ms)");
+            actions.Add(messageAction);
 
             Console.WriteLine(Action.ToText(actions));
         }
@@ -906,6 +913,52 @@ public class SilenceAction : Action
         _direction = null;
     }
 
+    /// <summary>
+    /// List of direction, nb of moves and final position
+    /// </summary>
+    public static List<(Direction, int, Position)> ComputeSilenceActions(
+        Position startingPosition, 
+        HashSet<Position> alreadyVisitedPositions)
+    {
+        var possibleSilenceMoves = new List<(Direction, int, Position)>();
+
+        //No move
+        possibleSilenceMoves.Add((Direction.E, 0, startingPosition));
+
+        foreach(var neighbor in Map.GetNeighborPositions(startingPosition))
+        {
+            //Explore this direction
+            var curDirection = neighbor.Key;
+            var curPos = neighbor.Value;
+            var move = 1;
+            while(move <= 4)
+            {
+                var notYetVisited = alreadyVisitedPositions.Contains(curPos) == false;
+                if(notYetVisited)
+                {
+                    possibleSilenceMoves.Add((curDirection, move, curPos));
+                    if( Map.TryGetNeighborPosition(curPos, curDirection, out var newPos))
+                    {
+                        curPos = newPos;
+                        move++;
+                    }
+                    else
+                    {
+                        //Can not go here and further, stop going in this direction
+                        break;
+                    }
+                }
+                else
+                {
+                    //Can not go here and further, stop going in this direction
+                    break;
+                }
+            }
+        } 
+
+        return possibleSilenceMoves;
+    }
+
     public SilenceAction(Direction direction, int moves)
     {
         _direction = direction;
@@ -986,7 +1039,7 @@ public static class MySubmarine
 {
     public static Position Position;
 
-    public readonly static TrackingService TrackingService = new TrackingService(Map.WaterPositions);
+    public readonly static TrackingService TrackingService = new TrackingService(Map.WaterPositions, null);
 
     private static readonly HashSet<Position> _visitedPositions = new HashSet<Position>();
 
@@ -1015,29 +1068,7 @@ public static class MySubmarine
     {
         foreach(var action in actions)
         {
-            if (action is MoveAction)
-            {
-                TrackingService.Track((MoveAction)action);
-                return;
-            }
-
-            if (action is SurfaceAction)
-            {
-                TrackingService.Track((SurfaceAction)action);
-                return;
-            }
-
-            if (action is TorpedoAction)
-            {
-                TrackingService.Track((TorpedoAction)action);
-                return;
-            }
-
-            if (action is SilenceAction)
-            {
-                TrackingService.Track((SilenceAction)action);
-                return;
-            }
+            TrackingService.Track(action);
         }
     }
 
@@ -1091,10 +1122,12 @@ public static class MySubmarine
 
     public static SilenceAction Silence(Direction direction, int moves)
     {
-        var delta = Player.FourDirectionDeltas[direction];
+        var curPosition = Position;
         for (int i = 0; i < moves; i++)
         {
-            MoveTo(Position.Translate(delta.Item1, delta.Item2));
+            Map.TryGetNeighborPosition(curPosition, direction, out curPosition);
+
+            MoveTo(curPosition);
         }
 
         return new SilenceAction(direction, moves);
@@ -1104,7 +1137,7 @@ public static class MySubmarine
 public static class OpponentSubmarine
 {
     
-    private static TrackingService _trackingService = new TrackingService(Map.WaterPositions);
+    private static TrackingService _trackingService = new TrackingService(Map.WaterPositions, null);
 
     public static HashSet<Position> PossiblePositions => _trackingService.PossiblePositions;
 
@@ -1131,19 +1164,18 @@ public static class OpponentSubmarine
 public class TrackingService
 {
     private HashSet<Position> _possiblePositions = new HashSet<Position>();
-
     public int Health = -6;
     public int LostHealth = 0;
-
-    private MoveAction _lastMoveAction = null;
+    public MoveAction LastMoveAction = null;
 
     /// <summary>
     /// 
     /// </summary>
     /// <param name="initialPositions">Positions where the submarine **can** be</param>
-    public TrackingService(HashSet<Position> initialPositions)
+    public TrackingService(HashSet<Position> initialPositions, MoveAction lastMoveAction)
     {
         _possiblePositions = initialPositions;
+        LastMoveAction = lastMoveAction;
     }
 
     public HashSet<Position> PossiblePositions => _possiblePositions.ToHashSet();
@@ -1152,46 +1184,42 @@ public class TrackingService
     {
         if (submarineAction is MoveAction)
         {   
-            Track((MoveAction)submarineAction);
+            TrackMoveAction((MoveAction)submarineAction);
         }
 
         if (submarineAction is SurfaceAction)
         {
-            Track((SurfaceAction)submarineAction);
+            TrackSurfaceAction((SurfaceAction)submarineAction);
         }
 
         if (submarineAction is TorpedoAction)
         {
-            Track((TorpedoAction)submarineAction);
+            TrackTorpedoAction((TorpedoAction)submarineAction);
         }
 
         if (submarineAction is SilenceAction)
         {
-            Track((SilenceAction)submarineAction);
+            TrackSilenceAction();
         }        
     }
 
-    private void Track(MoveAction moveAction)
+    private void TrackMoveAction(MoveAction moveAction)
     {
         var newPossiblePositions = new HashSet<Position>();
+        var direction = moveAction.Direction;
 
         foreach(var pos in _possiblePositions)
         {
-            var direction = moveAction.Direction;
-            var delta = Player.FourDirectionDeltas[direction];
-            var newPos = pos.Translate(delta.Item1, delta.Item2);
-            
-            if(Map.IsWater(newPos))
-            {
-                newPossiblePositions.Add(newPos);
-            }
+            Map.TryGetNeighborPosition(pos, direction, out var newPos);
+
+            newPossiblePositions.Add(newPos);
         }
 
-        _lastMoveAction = moveAction;
+        LastMoveAction = moveAction;
         _possiblePositions = newPossiblePositions;
     }
 
-    private void Track(SurfaceAction surfaceAction)
+    private void TrackSurfaceAction(SurfaceAction surfaceAction)
     {
         var sector = surfaceAction.sector;
         
@@ -1209,7 +1237,7 @@ public class TrackingService
         Health--;
     }
 
-    private void Track(TorpedoAction torpedoAction)
+    private void TrackTorpedoAction(TorpedoAction torpedoAction)
     {
         var torpedoPosition = torpedoAction.TargetPosition;
         
@@ -1220,37 +1248,24 @@ public class TrackingService
         _possiblePositions = newPositions;
     }
 
-    private void Track(SilenceAction silenceAction)
+    private void TrackSilenceAction()
     {
         var newPossiblePositions = new HashSet<Position>();
+        var visitedPositions = new HashSet<Position>();
 
-        var possibleDirections = Player.FourDirectionDeltas.ToList();
-
-        if(_lastMoveAction != null)
-        {
-            var excludeDirection = Player.OppositeDirection[_lastMoveAction.Direction];
-            possibleDirections = possibleDirections.Where(x => x.Key != excludeDirection).ToList();
-        }
+        var excludeDirection = Player.OppositeDirection[LastMoveAction.Direction];
 
         foreach (var pos in _possiblePositions)
         {
-            foreach(var direction in possibleDirections)
+            var possibleSilenceActions = SilenceAction.ComputeSilenceActions(pos, visitedPositions )
+                .Where(silenceAction => silenceAction.Item1 != excludeDirection)
+                .ToList();
+            
+            foreach(var possibleSilenceAction in possibleSilenceActions)
             {
-                for(int move = 0; move <= 4; move++)
-                {
-                    var delta = direction.Value;
-                    var newPos = pos.Translate(delta.Item1 * move, delta.Item2 * move);
-
-                    if (Map.IsWater(newPos))
-                    {
-                        newPossiblePositions.Add(newPos);
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
+                newPossiblePositions.Add(possibleSilenceAction.Item3);
             }
+
         }
 
         _possiblePositions = newPossiblePositions;
@@ -1271,9 +1286,7 @@ public class TrackingService
         foreach (var weaponAction in weaponActions)
         {
             var weaponPosition = weaponAction.TargetPosition;
-            var blastedPositions = Player.EightDirectionDeltas
-                    .Select(delta => new Position(weaponPosition.x + delta.Item1, weaponPosition.y + delta.Item2))
-                    .ToList();
+            var blastedPositions = Map.NeighborBlastedPositions[weaponPosition].ToHashSet();
 
             if(LostHealth == 0)
             {

@@ -4,13 +4,29 @@ using System.Collections.Generic;
 
 static class Map
 {
-    public static int Height;
-    public static int Width;
+    public static int Height, Width;
     private static string[] Rows;
 
     private static char Water = '.';
-    
-    public static HashSet<Position> WaterPositions = new HashSet<Position>();
+    private static (int, int)[] EightDirectionVectors = new (int, int)[]
+    {
+        (-1,-1), (0, -1), (1, -1),
+        (-1, 0),          (1,  0),
+        (-1, 1), (0,  1), (1,  1)
+    };
+    private static Dictionary<Direction, (int, int)> FourDirectionDeltas = new Dictionary<Direction, (int, int)>
+    {
+        {  Direction.S, (0 ,  1) },
+        {  Direction.W, (-1,  0) },
+        {  Direction.E, (1 ,  0) },
+        {  Direction.N, (0 , -1) },
+    };
+
+    public static HashSet<Position> WaterPositions;
+
+    public static IDictionary<Position, List<Position>> NeighborBlastedPositions;
+
+    private static IDictionary<Position, Dictionary<Direction, Position>> NeighborWaterPositions;
 
     public static void InitializeMap(int height, int width, string[] rows)
     {
@@ -18,6 +34,10 @@ static class Map
         Width = width;
         Rows = rows;
 
+        WaterPositions = new HashSet<Position>();
+        NeighborBlastedPositions = new Dictionary<Position, List<Position>>();
+        NeighborWaterPositions = new Dictionary<Position, Dictionary<Direction, Position>>();
+        
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
@@ -27,9 +47,21 @@ static class Map
                 if (IsWater(position))
                 {
                     WaterPositions.Add(position);
+                    NeighborBlastedPositions[position] = GetBlastedNeighborPositions(position);
+                    NeighborWaterPositions[position] = GetNeighborWaterPositions(position);
                 }
             }
         }
+    }
+    
+    public static IDictionary<Direction, Position> GetNeighborPositions(Position p)
+    {
+        return NeighborWaterPositions[p];
+    }
+
+    public static bool TryGetNeighborPosition(Position position, Direction d, out Position neighborPosition)
+    {
+        return NeighborWaterPositions[position].TryGetValue(d, out neighborPosition);       
     }
 
     public static Position GetRandomWaterPosition()
@@ -46,39 +78,6 @@ static class Map
         }
 
         return position;
-    }
-
-    public static bool IsWater(Position coord)
-    {
-        var x = coord.x;
-        var y = coord.y;
-
-        return 
-            (0 <= x && x < Width) && 
-            (0 <= y && y < Height) &&
-            Rows[y][x] == Water;
-    }
-
-    /// <summary>
-    /// Returns water neighbors positions 
-    /// </summary>
-    /// <param name="fromPosition"></param>
-    /// <returns></returns>
-    public static List<(Position, Direction)> GetWaterNeighborPositions(Position fromPosition)
-    {
-        var positions = new List<(Position, Direction)>(4);
-
-        foreach (var directionDelta in Player.FourDirectionDeltas)
-        {
-            var dx = directionDelta.Value.Item1;
-            var dy = directionDelta.Value.Item2;
-            var waterNeighbor = fromPosition.Translate(dx, dy);
-            if(Map.IsWater(waterNeighbor))
-            {
-                positions.Add( (waterNeighbor, directionDelta.Key) );
-            }
-        }
-        return positions;
     }
 
     public static HashSet<Position> GetSectorWaterPositions(int sector)
@@ -98,6 +97,55 @@ static class Map
             }
         }
         return waterSectorPositions;
+    }
+
+    public static bool IsWater(Position coord)
+    {
+        var x = coord.x;
+        var y = coord.y;
+
+        return 
+            (0 <= x && x < Width) && 
+            (0 <= y && y < Height) &&
+            Rows[y][x] == Water;
+    }
+
+    private static List<Position> GetBlastedNeighborPositions(Position position)
+    {
+        var neighborBlastedPositions = new List<Position>(8);
+
+        foreach(var vector in Map.EightDirectionVectors)
+        {
+            var neighbor = position.Translate(vector.Item1, vector.Item2);
+            if(Map.IsWater(neighbor))
+            {
+                neighborBlastedPositions.Add(neighbor);
+            }
+        }
+
+        return neighborBlastedPositions;
+    }
+
+    /// <summary>
+    /// Returns water neighbors positions 
+    /// </summary>
+    /// <param name="fromPosition"></param>
+    /// <returns></returns>
+    private static Dictionary<Direction, Position> GetNeighborWaterPositions(Position fromPosition)
+    {
+        var positions = new Dictionary<Direction, Position>(4);
+
+        foreach (var directionDelta in FourDirectionDeltas)
+        {
+            var dx = directionDelta.Value.Item1;
+            var dy = directionDelta.Value.Item2;
+            var waterNeighbor = fromPosition.Translate(dx, dy);
+            if(Map.IsWater(waterNeighbor))
+            {
+                positions[directionDelta.Key] = waterNeighbor;
+            }
+        }
+        return positions;
     }
 
     private static (Position, Position) GetSectorBounds(int sector)

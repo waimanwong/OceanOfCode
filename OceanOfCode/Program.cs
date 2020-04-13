@@ -19,21 +19,6 @@ public enum Power { UNKNOWN, TORPEDO, SILENCE, SONAR, MINE }
 class Player
 {
     
-    public static Dictionary<Direction, (int, int)> FourDirectionDeltas = new Dictionary<Direction, (int, int)>
-    {
-        {  Direction.S, (0 ,  1) },
-        {  Direction.W, (-1,  0) },
-        {  Direction.E, (1 ,  0) },
-        {  Direction.N, (0 , -1) },
-    };
-
-    public static (int, int)[] EightDirectionDeltas = new (int, int)[]
-    {
-        (-1,-1), (0, -1), (1, -1),
-        (-1, 0),          (1,  0),
-        (-1, 1), (0,  1), (1,  1)
-    };
-
     public static Dictionary<Direction,Direction> OppositeDirection = new Dictionary<Direction, Direction>()
     {
         { Direction.E, Direction.W },
@@ -44,7 +29,7 @@ class Player
     
     public static void Debug(string message)
     {
-        Console.Error.WriteLine(message);
+        //Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)
@@ -108,7 +93,8 @@ class Player
             MySubmarine.UpdateState(myLife, mylastActions, opponentActions);
             MySubmarine.Debug();
             
-
+            var stealthScore = $"{MySubmarine.PossiblePositions.Count} - {OpponentSubmarine.PossiblePositions.Count}";
+        
             var gameState = new GameState(torpedoCooldown, sonarCooldown, silenceCooldown, mineCooldown);
             var ai = new AI(gameState);
             var actions = ai.ComputeActions();
@@ -117,9 +103,8 @@ class Player
             
             mylastActions = actions;
 
-            var txtActions = Action.ToText(actions);
-
-            Player.Debug($"{stopwatch.ElapsedMilliseconds - start} ms");
+            var messageAction = new MessageAction($"{stealthScore} ({stopwatch.ElapsedMilliseconds - start}ms)");
+            actions.Add(messageAction);
 
             Console.WriteLine(Action.ToText(actions));
         }
