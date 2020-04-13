@@ -7,11 +7,10 @@ public class TrackingService
 {
     private HashSet<Position> _possiblePositions = new HashSet<Position>();
 
-    private int _health = -6;
+    public int Health = -6;
+    public int LostHealth = 0;
 
     private MoveAction _lastMoveAction = null;
-
-    public int Health => _health;
 
     /// <summary>
     /// 
@@ -82,7 +81,7 @@ public class TrackingService
             _possiblePositions = newPositions;
         }
 
-        _health--;
+        Health--;
     }
 
     private void Track(TorpedoAction torpedoAction)
@@ -128,11 +127,10 @@ public class TrackingService
         _possiblePositions = newPossiblePositions;
     }
 
-    public void Track(int newHealth, IEnumerable<IWeaponAction> weaponActions)
+    public void TrackWeaponEffect(int newHealth, IEnumerable<IWeaponAction> weaponActions)
     {
-        var lostHealtHCausedByWeapons = _health - newHealth;
-        
-        _health = newHealth;
+        LostHealth = Health - newHealth;
+        Health = newHealth;
 
         if(weaponActions.Count() == 0)
         {
@@ -148,7 +146,7 @@ public class TrackingService
                     .Select(delta => new Position(weaponPosition.x + delta.Item1, weaponPosition.y + delta.Item2))
                     .ToList();
 
-            if(lostHealtHCausedByWeapons == 0)
+            if(LostHealth == 0)
             {
                 //No damage, remove possibilities
                 foreach(var position in _possiblePositions)
@@ -161,7 +159,7 @@ public class TrackingService
                     }
                 }
             }
-            else if (lostHealtHCausedByWeapons == 2)
+            else if (LostHealth == 2)
             {
                 //Direct damage
                 if(_possiblePositions.Contains(weaponPosition))

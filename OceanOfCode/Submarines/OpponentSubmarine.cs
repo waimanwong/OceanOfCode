@@ -15,7 +15,7 @@ public static class OpponentSubmarine
         //Play weaponActions
         var allWeaponActions = myActions.OfType<IWeaponAction>();
 
-        _trackingService.Track(newHealth, allWeaponActions);
+        _trackingService.TrackWeaponEffect(newHealth, allWeaponActions);
 
         //Then opponent actions
         opponentActions.ForEach(_trackingService.Track);

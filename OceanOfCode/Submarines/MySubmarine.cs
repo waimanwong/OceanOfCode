@@ -15,7 +15,7 @@ public static class MySubmarine
 
     public static void UpdateState(int health, List<Action> myActions, List<Action> opponentActions)
     {
-        TrackingService.Track(health, opponentActions.OfType<IWeaponAction>());
+        TrackingService.TrackWeaponEffect(health, opponentActions.OfType<IWeaponAction>());
     }
 
     private static void MoveTo(Position position)

@@ -44,7 +44,7 @@ class Player
     
     public static void Debug(string message)
     {
-       // Console.Error.WriteLine(message);
+        //Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)
@@ -72,13 +72,16 @@ class Player
 
         var mylastActions = new List<Action>();
 
+        var stopwatch = Stopwatch.StartNew();
+        
         // game loop
         while (true)
         {
-            
             var line = Console.ReadLine();
             var sonarLine = Console.ReadLine();
             var txtOpponentOrders = Console.ReadLine();
+
+            var start = stopwatch.ElapsedMilliseconds;
 
             inputs = line.Split(' ');
             int x = int.Parse(inputs[0]);
@@ -113,6 +116,10 @@ class Player
             MySubmarine.ApplyActions(actions);            
             
             mylastActions = actions;
+
+            var txtActions = Action.ToText(actions);
+
+            Player.Debug($"{stopwatch.ElapsedMilliseconds - start} ms");
 
             Console.WriteLine(Action.ToText(actions));
         }

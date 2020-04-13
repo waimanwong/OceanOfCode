@@ -7,7 +7,7 @@ using System.Text;
 using System.Collections;
 
 
- // LastEdited: 13/04/2020 0:48 
+ // LastEdited: 13/04/2020 11:26 
 
 
 
@@ -109,6 +109,7 @@ class AI
 
             if (blastedPositions.Contains(MySubmarine.Position) == false)
             {
+                //Count how many possible positions are blasted
                 var count = enemyPositions.Count(p => blastedPositions.Contains(p));
 
                 if(count >= 6 || enemyPositions.Count <= 6)
@@ -141,8 +142,6 @@ class AI
 
     private bool TrySilence(out Direction direction, out int moves)
     {
-
-
         direction = Direction.E;
         moves = 0;
 
@@ -233,14 +232,12 @@ class AI
 
         var bestScore = 0;
         var bestMove = moves.First();
+        var iterations = 0;
 
         foreach(var move in moves)
         {
-            var trackingService = new TrackingService(estimationOfMyPositions);
-            var moveAction = new MoveAction(move.Item2, Power.UNKNOWN);
-            trackingService.Track(moveAction);
+            var score = ScoreMove(move, MySubmarine.VisitedPositions, estimationOfMyPositions, iterations);
 
-            var score = trackingService.PossiblePositions.Count;
             if(score > bestScore)
             {
                 bestScore = score;
@@ -249,6 +246,52 @@ class AI
         }
 
         return (bestMove.Item1, bestMove.Item2);
+    }
+
+    private int ScoreMove(
+        Tuple<Position, Direction> move,
+        HashSet<Position> visitedPositions, 
+        HashSet<Position> estimationOfMyPositions, 
+        int iterations)
+    {
+        var trackingService = new TrackingService(estimationOfMyPositions);
+        var moveAction = new MoveAction(move.Item2, Power.UNKNOWN);
+        trackingService.Track(moveAction);
+
+        if(iterations == 0)
+        {
+            return trackingService.PossiblePositions.Count;
+        }
+
+        // next moves ?
+        var curPosition = move.Item1;
+        visitedPositions.Add(curPosition);
+        
+        var bestScore = -1;
+
+        foreach(var directionDelta in Player.FourDirectionDeltas)
+        {
+            var deltaX = directionDelta.Value.Item1;
+            var deltaY = directionDelta.Value.Item2;
+            var newDirection = directionDelta.Key;
+            var newPos = curPosition.Translate(deltaX, deltaY);
+            if(Map.IsWater(newPos) && visitedPositions.Contains(newPos) == false)
+            {
+                var newEstimationOfMyPositions = trackingService.PossiblePositions;
+                var score = ScoreMove(
+                    new Tuple<Position, Direction>(newPos, newDirection), 
+                    visitedPositions.ToHashSet(),
+                    trackingService.PossiblePositions.ToHashSet(),
+                    iterations - 1);
+
+                if(score > bestScore)
+                {
+                    bestScore = score;
+                }
+            }
+        }
+
+        return bestScore;
     }
 
     private Power SelectPowerToCharge()
@@ -271,10 +314,10 @@ class AI
             return Power.SILENCE;
         }
 
-        if (_gameState.SonarAvailable == false)
-        {
-            return Power.SONAR;
-        }
+        // if (_gameState.SonarAvailable == false)
+        // {
+        //     return Power.SONAR;
+        // }
 
         return Power.SILENCE;
     }
@@ -587,7 +630,7 @@ class Player
     
     public static void Debug(string message)
     {
-       // Console.Error.WriteLine(message);
+        //Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)
@@ -615,13 +658,16 @@ class Player
 
         var mylastActions = new List<Action>();
 
+        var stopwatch = Stopwatch.StartNew();
+        
         // game loop
         while (true)
         {
-            
             var line = Console.ReadLine();
             var sonarLine = Console.ReadLine();
             var txtOpponentOrders = Console.ReadLine();
+
+            var start = stopwatch.ElapsedMilliseconds;
 
             inputs = line.Split(' ');
             int x = int.Parse(inputs[0]);
@@ -656,6 +702,10 @@ class Player
             MySubmarine.ApplyActions(actions);            
             
             mylastActions = actions;
+
+            var txtActions = Action.ToText(actions);
+
+            Player.Debug($"{stopwatch.ElapsedMilliseconds - start} ms");
 
             Console.WriteLine(Action.ToText(actions));
         }
@@ -907,7 +957,7 @@ public static class MySubmarine
 
     public static void UpdateState(int health, List<Action> myActions, List<Action> opponentActions)
     {
-        TrackingService.Track(health, opponentActions.OfType<IWeaponAction>());
+        TrackingService.TrackWeaponEffect(health, opponentActions.OfType<IWeaponAction>());
     }
 
     private static void MoveTo(Position position)
@@ -1026,7 +1076,7 @@ public static class OpponentSubmarine
         //Play weaponActions
         var allWeaponActions = myActions.OfType<IWeaponAction>();
 
-        _trackingService.Track(newHealth, allWeaponActions);
+        _trackingService.TrackWeaponEffect(newHealth, allWeaponActions);
 
         //Then opponent actions
         opponentActions.ForEach(_trackingService.Track);
@@ -1043,11 +1093,10 @@ public class TrackingService
 {
     private HashSet<Position> _possiblePositions = new HashSet<Position>();
 
-    private int _health = -6;
+    public int Health = -6;
+    public int LostHealth = 0;
 
     private MoveAction _lastMoveAction = null;
-
-    public int Health => _health;
 
     /// <summary>
     /// 
@@ -1118,7 +1167,7 @@ public class TrackingService
             _possiblePositions = newPositions;
         }
 
-        _health--;
+        Health--;
     }
 
     private void Track(TorpedoAction torpedoAction)
@@ -1164,11 +1213,10 @@ public class TrackingService
         _possiblePositions = newPossiblePositions;
     }
 
-    public void Track(int newHealth, IEnumerable<IWeaponAction> weaponActions)
+    public void TrackWeaponEffect(int newHealth, IEnumerable<IWeaponAction> weaponActions)
     {
-        var lostHealtHCausedByWeapons = _health - newHealth;
-        
-        _health = newHealth;
+        LostHealth = Health - newHealth;
+        Health = newHealth;
 
         if(weaponActions.Count() == 0)
         {
@@ -1184,7 +1232,7 @@ public class TrackingService
                     .Select(delta => new Position(weaponPosition.x + delta.Item1, weaponPosition.y + delta.Item2))
                     .ToList();
 
-            if(lostHealtHCausedByWeapons == 0)
+            if(LostHealth == 0)
             {
                 //No damage, remove possibilities
                 foreach(var position in _possiblePositions)
@@ -1197,7 +1245,7 @@ public class TrackingService
                     }
                 }
             }
-            else if (lostHealtHCausedByWeapons == 2)
+            else if (LostHealth == 2)
             {
                 //Direct damage
                 if(_possiblePositions.Contains(weaponPosition))

@@ -101,6 +101,7 @@ class AI
 
             if (blastedPositions.Contains(MySubmarine.Position) == false)
             {
+                //Count how many possible positions are blasted
                 var count = enemyPositions.Count(p => blastedPositions.Contains(p));
 
                 if(count >= 6 || enemyPositions.Count <= 6)
@@ -133,8 +134,6 @@ class AI
 
     private bool TrySilence(out Direction direction, out int moves)
     {
-
-
         direction = Direction.E;
         moves = 0;
 
@@ -225,14 +224,12 @@ class AI
 
         var bestScore = 0;
         var bestMove = moves.First();
+        var iterations = 0;
 
         foreach(var move in moves)
         {
-            var trackingService = new TrackingService(estimationOfMyPositions);
-            var moveAction = new MoveAction(move.Item2, Power.UNKNOWN);
-            trackingService.Track(moveAction);
+            var score = ScoreMove(move, MySubmarine.VisitedPositions, estimationOfMyPositions, iterations);
 
-            var score = trackingService.PossiblePositions.Count;
             if(score > bestScore)
             {
                 bestScore = score;
@@ -241,6 +238,52 @@ class AI
         }
 
         return (bestMove.Item1, bestMove.Item2);
+    }
+
+    private int ScoreMove(
+        Tuple<Position, Direction> move,
+        HashSet<Position> visitedPositions, 
+        HashSet<Position> estimationOfMyPositions, 
+        int iterations)
+    {
+        var trackingService = new TrackingService(estimationOfMyPositions);
+        var moveAction = new MoveAction(move.Item2, Power.UNKNOWN);
+        trackingService.Track(moveAction);
+
+        if(iterations == 0)
+        {
+            return trackingService.PossiblePositions.Count;
+        }
+
+        // next moves ?
+        var curPosition = move.Item1;
+        visitedPositions.Add(curPosition);
+        
+        var bestScore = -1;
+
+        foreach(var directionDelta in Player.FourDirectionDeltas)
+        {
+            var deltaX = directionDelta.Value.Item1;
+            var deltaY = directionDelta.Value.Item2;
+            var newDirection = directionDelta.Key;
+            var newPos = curPosition.Translate(deltaX, deltaY);
+            if(Map.IsWater(newPos) && visitedPositions.Contains(newPos) == false)
+            {
+                var newEstimationOfMyPositions = trackingService.PossiblePositions;
+                var score = ScoreMove(
+                    new Tuple<Position, Direction>(newPos, newDirection), 
+                    visitedPositions.ToHashSet(),
+                    trackingService.PossiblePositions.ToHashSet(),
+                    iterations - 1);
+
+                if(score > bestScore)
+                {
+                    bestScore = score;
+                }
+            }
+        }
+
+        return bestScore;
     }
 
     private Power SelectPowerToCharge()
@@ -263,10 +306,10 @@ class AI
             return Power.SILENCE;
         }
 
-        if (_gameState.SonarAvailable == false)
-        {
-            return Power.SONAR;
-        }
+        // if (_gameState.SonarAvailable == false)
+        // {
+        //     return Power.SONAR;
+        // }
 
         return Power.SILENCE;
     }
