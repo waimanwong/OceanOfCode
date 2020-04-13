@@ -7,7 +7,7 @@ using System.Text;
 using System.Collections;
 
 
- // LastEdited: 13/04/2020 13:34 
+ // LastEdited: 13/04/2020 13:35 
 
 
 
@@ -644,7 +644,7 @@ public enum Power { UNKNOWN, TORPEDO, SILENCE, SONAR, MINE }
 
 class Player
 {
-    public static Direction[] AllDirections = new[] { Direction.E, Direction.N, Direction.S, Direction.W };
+    
     public static Dictionary<Direction, (int, int)> FourDirectionDeltas = new Dictionary<Direction, (int, int)>
     {
         {  Direction.S, (0 ,  1) },

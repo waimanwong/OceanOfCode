@@ -18,7 +18,7 @@ public enum Power { UNKNOWN, TORPEDO, SILENCE, SONAR, MINE }
 
 class Player
 {
-    public static Direction[] AllDirections = new[] { Direction.E, Direction.N, Direction.S, Direction.W };
+    
     public static Dictionary<Direction, (int, int)> FourDirectionDeltas = new Dictionary<Direction, (int, int)>
     {
         {  Direction.S, (0 ,  1) },
