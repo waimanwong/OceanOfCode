@@ -7,7 +7,7 @@ using System.Text;
 using System.Collections;
 
 
- // LastEdited: 13/04/2020 13:30 
+ // LastEdited: 13/04/2020 13:34 
 
 
 
@@ -540,12 +540,6 @@ static class Map
         return positions;
     }
 
-    public static bool IsInMap(Position p)
-    {
-        return 0 <= p.x && p.x < Width &&
-            0 <= p.y && p.y < Height;
-    }
-
     public static HashSet<Position> GetSectorWaterPositions(int sector)
     {
         var waterSectorPositions = new HashSet<Position>();
@@ -676,7 +670,7 @@ class Player
     
     public static void Debug(string message)
     {
-        //Console.Error.WriteLine(message);
+        Console.Error.WriteLine(message);
     }
 
     static void Main(string[] args)

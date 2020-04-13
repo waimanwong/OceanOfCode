@@ -81,12 +81,6 @@ static class Map
         return positions;
     }
 
-    public static bool IsInMap(Position p)
-    {
-        return 0 <= p.x && p.x < Width &&
-            0 <= p.y && p.y < Height;
-    }
-
     public static HashSet<Position> GetSectorWaterPositions(int sector)
     {
         var waterSectorPositions = new HashSet<Position>();
